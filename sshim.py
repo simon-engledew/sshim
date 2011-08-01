@@ -5,13 +5,13 @@ logging.basicConfig(level='DEBUG')
 logger = logging.getLogger()
 
 class SSHim(threading.Thread):
-    def __init__(self, script, port):
+    def __init__(self, script, address='127.0.0.1', port=22):
         threading.Thread.__init__(self)
         self.script = script
         self.daemon = True
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.socket.bind(('127.0.0.1', port))
+        self.socket.bind((address, port))
         self.key = paramiko.RSAKey(filename=os.path.join(os.path.dirname(__file__), 'private.key'))
     
     def __enter__(self):
@@ -46,10 +46,10 @@ class SSHim(threading.Thread):
 
     def check_channel_shell_request(self, channel):
         channel.setblocking(True)
+        Actor(self.script, channel).start()
         return True
 
     def check_channel_pty_request(self, channel, term, width, height, pixelwidth, pixelheight, modes):
-        self.script(channel).start()
         return True
 
     def run(self):
@@ -71,32 +71,26 @@ class Actor(threading.Thread):
         self.daemon = True
         self.script = script
         self.channel = channel
-        self.values = {}
     
     def run(self):
-        fileobj = self.channel.makefile('rw')
         try:
-            for statement in self.script.statements:
-                statement(self, fileobj)
+            self.script(Script(self.channel.makefile('rw')))
         finally:
-            print self.values
             self.channel.close()
 
-class Call(object):
-    def __init__(self, value):
-        self.value = value
+class Script(object):
+    def __init__(self, fileobj):
+        self.fileobj = fileobj
+        self.values = {}
     
-    def __call__(self, actor, fileobj):
-        fileobj.write(self.value % actor.values)
-
-class Response(object):
-    def __init__(self, value):
-        self.value = value
+    def __rshift__(self, line):
+        self.fileobj.write(line % self.values)
     
-    def __call__(self, actor, fileobj):
+    def __lshift__(self, line):
+        line = re.compile(line)
         buffer = StringIO()
         while True:
-            byte = fileobj.read(1)
+            byte = self.fileobj.read(1)
             
             if not byte:
                 break
@@ -104,43 +98,32 @@ class Response(object):
                 pass
             elif byte == '\x7f':
                 if buffer.len > 0:
-                    fileobj.write('\b \b')
+                    self.fileobj.write('\b \b')
                     buffer.truncate(buffer.len - 1)
             elif byte == '\x04':
                 raise EOFError()
-            elif byte == '\x1b' and fileobj.read(1) == '[':
-                print 'cursor:', fileobj.read(1)
+            elif byte == '\x1b' and self.fileobj.read(1) == '[':
+                print 'cursor:', self.fileobj.read(1)
             elif byte in ('\n', '\r'):
                 break
             else:
-                print repr(byte)
+                logger.debug(repr(byte))
                 buffer.write(byte)
-                fileobj.write(byte)
-        fileobj.write('\r\n')
-        match = self.value.match(buffer.getvalue())
+                self.fileobj.write(byte)
+        self.fileobj.write('\r\n')
+        match = line.match(buffer.getvalue())
         if match:
-            actor.values.update(match.groupdict())
-
-class Script(object):
-    def __init__(self):
-        self.statements = []
-    
-    def __call__(self, fileobj):
-        return Actor(self, fileobj)
-    
-    def __rshift__(self, other):
-        self.statements.append(Call(other))
-    
-    def __lshift__(self, other):
-        self.statements.append(Response(other))
+            self.values.update(match.groupdict())
+        else:
+            raise ValueError('failed to match "%s" against "%s"' % (line, buffer.getvalue()))
 
 if __name__ == '__main__':
-    script = Script()
-    script >> 'Please enter your name: '
-    script << re.compile('(?P<name>.*)')
-    script >> 'Thanks %(name)s!\r\n'
+    def hello_world(script):        
+        script >> 'Please enter your name: '
+        script << '(?P<name>.*)'
+        script >> 'Hello %(name)s!\r\n'
     
-    server = SSHim(script, 3000)
+    server = SSHim(hello_world, port=3000)
     try:
         server.run()
     except KeyboardInterrupt:
