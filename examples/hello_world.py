@@ -2,7 +2,7 @@ import sshim
 
 def hello_world(script):
     script.write('Please enter your name: ')
-    script.expect('(?P<name>.*)')
+    script.readline('(?P<name>.*)')
     print script['name'], 'just connected'
     script.writeline('Hello %(name)s!')
 

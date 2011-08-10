@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import paramiko, threading, socket, select, os, re
+import paramiko, threading, socket, select, os, re, traceback
 from StringIO import StringIO
 import logging, subprocess
 logging.basicConfig(level='DEBUG')
@@ -104,7 +104,12 @@ class Actor(threading.Thread):
 
     def run(self):
         try:
-            self.script(Script(self.channel.makefile('rw')))
+            fileobj = self.channel.makefile('rw')
+            try:
+                self.script(Script(fileobj))
+            except:
+                fileobj.write('\r\n' + traceback.format_exc().replace('\n', '\r\n'))
+                raise
         finally:
             self.channel.close()
 
@@ -142,8 +147,8 @@ class Script(object):
             elif byte == '\x04':
                 raise EOFError()
             elif byte == '\x1b' and self.fileobj.read(1) == '[':
-                print 'cursor:', self.fileobj.read(1)
-            elif byte in ('\n', '\r'):
+                logger.debug('cursor: %s', self.fileobj.read(1))
+            elif byte in ('\r', '\n'):
                 break
             else:
                 logger.debug(repr(byte))
