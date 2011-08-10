@@ -119,10 +119,13 @@ class Script(object):
     def __setitem__(self, key, value):
         self.values[key] = value
 
-    def __rshift__(self, line):
-        self.fileobj.write(line % self.values)
+    def write(self, line):
+        self.fileobj.write(str(line) % self.values)
 
-    def __lshift__(self, line):
+    def writeline(self, line):
+        self.fileobj.write((str(line) % self.values) + '\r\n')
+
+    def expect(self, line):
         line = re.compile(line)
         buffer = StringIO()
         while True:

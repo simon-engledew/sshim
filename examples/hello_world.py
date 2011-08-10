@@ -1,10 +1,10 @@
 import sshim
 
 def hello_world(script):
-    script >> 'Please enter your name: '
-    script << '(?P<name>.*)'
+    script.write('Please enter your name: ')
+    script.expect('(?P<name>.*)')
     print script['name'], 'just connected'
-    script >> 'Hello %(name)s!\r\n'
+    script.writeline('Hello %(name)s!')
 
 server = sshim.Server(hello_world, port=3000)
 try:
