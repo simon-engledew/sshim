@@ -9,8 +9,8 @@ class TestExec(unittest.TestCase):
             script << '(?P<value>.*)'
             assert script.values.get('value') == 'test_echo'
             script >> '%(value)s'
-        
-        with sshim.SSHim(echo, port=3000) as server:
+
+        with sshim.Server(echo, port=3000) as server:
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             ssh.connect('127.0.0.1', port=3000)

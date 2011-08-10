@@ -1,29 +1,59 @@
+# -*- coding: utf-8 -*-
+
 import paramiko, threading, socket, select, os, re
 from StringIO import StringIO
 import logging, subprocess
 logging.basicConfig(level='DEBUG')
 logger = logging.getLogger()
 
-class SSHim(threading.Thread):
-    def __init__(self, script, address='127.0.0.1', port=22):
+DEFAULT_KEY = paramiko.RSAKey(file_obj=StringIO("""-----BEGIN RSA PRIVATE KEY-----
+MIIEogIBAAKCAQEAnahBtR7uxtHmk5UwlFfpC/zxdxjUKPD8UpNOOtIJwpei7gaZ
++Jgub5GFJtTG6CK+DIZiR4tE9JxMjTEFDCGA3U4C36shHB15Pl3bLx+UxdyFylpc
+c7XYp4fpQjhFUoHOAIl5ZaA223kIxi7sFXtM1Gjy6g49u+G5teVfMbeZnks2xjjy
+F84qVADFBXCsfjrY5m4R+Wnfups/jP1agOpnOvqHlX/bpvzEZRcwJ0A8CylBZzQP
+D1Y4EXy1B4QLyLJKFIMRkWnr0f8rK5Q/obCLTjl+IMmZrkItbfC/hYCy6TDi+Efn
+cgGw02L93Mf6QGDNc21BsRELPYMME22MmpLphQIBIwKCAQEAmScbQjtOWr1GY3r7
+/dG90SGaG+w70AALDmM2DUEQy6k/MF4vLAGMMd3RzfNE4YDV4EgHszbVRWSiIsHn
+pWJf7OyyVZ7s9r2LuO111gFr82iB98V+YcaX8zOSIxIXdLicOwk0GZRSjA8tGErW
+tcg8AYqFkulDSMylxqRN2IZ3+NnTROxh4uUFH57roSYoCvzjM2v1Xa+S42BLpBD1
+3mLAJD36JhOhMTgYUgHAROx9+YUUUzYk3jpkTGWnAYSumnJXQYphLE9zadXxh94N
+HZJdvXajuP5N2M3Q2b4Gbyt2wNFlNcHGA+Zwk8wHIBnY9Sb9Gz0QALsOAwUoRY8T
+rCysSwKBgQDPVjFdSgM3jScmFV9fVnx3iNIlM6Ea7+UCrOOCvcGtzDo5vuTPktw7
+8abHEFHw7VrtxI3lRQ41rlmK3B//Q7b+ZJ0HdZaRdyCqW1u91tq1tQe7yiJBm0c5
+hZ3F0Vr6HAXoBVOux5wUq55jvUJ8dCVYNYfctZducVmOos3toDkSzQKBgQDCqRQ/
+GO5AU3nKfuJ+SZvv8/gV1ki8pGmyxkSebUqZSXFx+rQEQ1e6tZvIz/rYftRkXAyL
+XfzXX8mU1wEci6O1oSLiUBgnT82PtUxlO3Peg1W/cpKAaIFvvOIvUMRGFbzWhuj7
+4p4KJjZWjYkAV2YlZZ8Br23DFFjjCuawX7NhmQKBgHCN4EiV5H09/08wLHWVWYK3
+/Qzhg1fEDpsNZZAd3isluTVKXvRXCddl7NJ2kuHf74hjYvjNt0G2ax9+z4qSeUhF
+P00xNHraRO7D4VhtUiggcemZnZFUSzx7vAxNFCFfq29TWVBAeU0MtRGSoG9yQCiS
+Fo3BqfogRo9Cb8ojxzYXAoGBAIV7QRVS7IPheBXTWXsrKRmRWaiS8AxTe63JyKcm
+XwoGea0+MkwQ67M6s/dqCxgcdGITO81Hw1HbSGYPxj91shYlWb/B5K0+CUyZk3id
+y8vHxcUbXSTZ8ls/sQqAhpZ1Tkn2HBpvglAaM+OUQK/G5vUSe6liWeTawJuvtCEr
+rjRLAoGAUNNY4/7vyYFX6HkX4O2yL/LZiEeR6reI9lrK/rSA0OCg9wvbIpq+0xPG
+jCrc8nTlA0K0LtEnE+4g0an76nSWUNiP4kALROfZpXajRRaWdwFRAO17c9T7Uxc0
+Eez9wYRqHiuvU0rryYvGyokr62w1MtJO0tttnxe1Of6wzb1WeCU=
+-----END RSA PRIVATE KEY-----"""))
+
+class Server(threading.Thread):
+    def __init__(self, script, address='127.0.0.1', port=22, key=DEFAULT_KEY):
         threading.Thread.__init__(self)
         self.script = script
         self.daemon = True
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((address, port))
-        self.key = paramiko.RSAKey(filename=os.path.join(os.path.dirname(__file__), 'private.key'))
-    
+        self.key = key
+
     def __enter__(self):
         self.start()
         return self
-    
+
     def __exit__(self, *exc_info):
         self.stop()
-    
+
     def stop(self):
         self.socket.close()
-    
+
     def check_channel_request(self, kind, channel_id):
         if kind in ('session',):
             return paramiko.OPEN_SUCCEEDED
@@ -71,7 +101,7 @@ class Actor(threading.Thread):
         self.daemon = True
         self.script = script
         self.channel = channel
-    
+
     def run(self):
         try:
             self.script(Script(self.channel.makefile('rw')))
@@ -82,16 +112,16 @@ class Script(object):
     def __init__(self, fileobj):
         self.fileobj = fileobj
         self.values = {}
-    
+
     def __rshift__(self, line):
         self.fileobj.write(line % self.values)
-    
+
     def __lshift__(self, line):
         line = re.compile(line)
         buffer = StringIO()
         while True:
             byte = self.fileobj.read(1)
-            
+
             if not byte:
                 break
             elif byte == '\t':
@@ -116,16 +146,3 @@ class Script(object):
             self.values.update(match.groupdict())
         else:
             raise ValueError('failed to match "%s" against "%s"' % (line, buffer.getvalue()))
-
-if __name__ == '__main__':
-    def hello_world(script):        
-        script >> 'Please enter your name: '
-        script << '(?P<name>.*)'
-        script >> 'Hello %(name)s!\r\n'
-    
-    server = SSHim(hello_world, port=3000)
-    try:
-        server.run()
-    except KeyboardInterrupt:
-        server.stop()
-    
