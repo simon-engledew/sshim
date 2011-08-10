@@ -1,0 +1,2 @@
+paramiko==1.7.7.1
+pycrypto==2.3

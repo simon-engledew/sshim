@@ -12,18 +12,22 @@ class SSHim(threading.Thread):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((address, port))
-        self.key = paramiko.RSAKey(filename=os.path.join(os.path.dirname(__file__), 'private.key'))
-    
+
+        private_key_path = os.path.join(os.path.dirname(__file__), 'private.key')
+        if not os.path.exists(private_key_path):
+            raise IOError("File not found: {0} - expected to find a private key.".format(private_key_path))
+        self.key = paramiko.RSAKey(filename=private_key_path)
+
     def __enter__(self):
         self.start()
         return self
-    
+
     def __exit__(self, *exc_info):
         self.stop()
-    
+
     def stop(self):
         self.socket.close()
-    
+
     def check_channel_request(self, kind, channel_id):
         if kind in ('session',):
             return paramiko.OPEN_SUCCEEDED
@@ -71,7 +75,7 @@ class Actor(threading.Thread):
         self.daemon = True
         self.script = script
         self.channel = channel
-    
+
     def run(self):
         try:
             self.script(Script(self.channel.makefile('rw')))
@@ -82,16 +86,16 @@ class Script(object):
     def __init__(self, fileobj):
         self.fileobj = fileobj
         self.values = {}
-    
+
     def __rshift__(self, line):
         self.fileobj.write(line % self.values)
-    
+
     def __lshift__(self, line):
         line = re.compile(line)
         buffer = StringIO()
         while True:
             byte = self.fileobj.read(1)
-            
+
             if not byte:
                 break
             elif byte == '\t':
@@ -118,14 +122,14 @@ class Script(object):
             raise ValueError('failed to match "%s" against "%s"' % (line, buffer.getvalue()))
 
 if __name__ == '__main__':
-    def hello_world(script):        
+    def hello_world(script):
         script >> 'Please enter your name: '
         script << '(?P<name>.*)'
         script >> 'Hello %(name)s!\r\n'
-    
+
     server = SSHim(hello_world, port=3000)
     try:
         server.run()
     except KeyboardInterrupt:
         server.stop()
-    
+
