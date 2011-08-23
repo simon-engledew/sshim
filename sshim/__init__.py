@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import paramiko, threading, socket, select, os, re, traceback
+import paramiko, threading, socket, select, os, re, traceback, errno
 from StringIO import StringIO
 import logging, subprocess
 logging.basicConfig(level='DEBUG')
@@ -53,6 +53,7 @@ class Server(threading.Thread):
 
     def stop(self):
         self.socket.close()
+        self.join()
 
     def check_channel_request(self, kind, channel_id):
         if kind in ('session',):
@@ -86,15 +87,18 @@ class Server(threading.Thread):
         try:
             self.socket.listen(5)
             while True:
-                socket, address = self.socket.accept()
-                transport = paramiko.Transport(socket)
-                transport.add_server_key(self.key)
-                transport.start_server(server=self)
+                r, w, x = select.select([self.socket], [], [], 1)
+                if r:
+                    client, address = self.socket.accept()
+                    transport = paramiko.Transport(client)
+                    transport.add_server_key(self.key)
+                    transport.start_server(server=self)
         except select.error as (code, message):
-            pass
-        finally:
-            self.stop()
-            self.socket.close()
+            if code != errno.EBADF:
+                raise
+        except socket.error as (code, message):
+            if code != errno.EBADF:
+                raise
 
 class Actor(threading.Thread):
     def __init__(self, script, channel):
