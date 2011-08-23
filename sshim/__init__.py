@@ -94,6 +94,7 @@ class Server(threading.Thread):
             pass
         finally:
             self.stop()
+            self.socket.close()
 
 class Actor(threading.Thread):
     def __init__(self, script, channel):
@@ -118,20 +119,13 @@ class Script(object):
         self.fileobj = fileobj
         self.values = {}
 
-    def __getitem__(self, key):
-        return self.values[key]
-
-    def __setitem__(self, key, value):
-        self.values[key] = value
-
     def write(self, line):
-        self.fileobj.write(str(line) % self.values)
+        self.fileobj.write(str(line))
 
     def writeline(self, line):
-        self.fileobj.write((str(line) % self.values) + '\r\n')
+        self.fileobj.write(str(line) + '\r\n')
 
     def expect(self, line):
-        line = re.compile(line)
         buffer = StringIO()
         while True:
             byte = self.fileobj.read(1)
@@ -155,8 +149,13 @@ class Script(object):
                 buffer.write(byte)
                 self.fileobj.write(byte)
         self.fileobj.write('\r\n')
-        match = line.match(buffer.getvalue())
-        if match:
-            self.values.update(match.groupdict())
+
+        if hasattr(line, 'match'):
+            match = line.match(buffer.getvalue())
+            if match:
+                return match
         else:
-            raise ValueError('failed to match "%s" against "%s"' % (line, buffer.getvalue()))
+            if line == buffer.getvalue():
+                return line
+
+        raise ValueError('failed to match "%s" against "%s"' % (line, buffer.getvalue()))

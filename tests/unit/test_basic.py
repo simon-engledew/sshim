@@ -6,9 +6,9 @@ from time import sleep
 class TestBasic(unittest.TestCase):
     def test_echo(self):
         def echo(script):
-            script.expect('(?P<value>.*)')
-            assert script['value'] == 'test_echo'
-            script.writeline('%(value)s')
+            groups = script.expect('(?P<value>.*)').groupdict()
+            assert groups['value'] == 'test_echo'
+            script.writeline('%(value)s' % groups)
 
         with sshim.Server(echo, port=3000) as server:
             ssh = paramiko.SSHClient()
@@ -17,4 +17,5 @@ class TestBasic(unittest.TestCase):
             channel = ssh.invoke_shell()
             fileobj = channel.makefile('rw')
             fileobj.write('test_echo\n')
-            assert fileobj.readline() == 'test_echo\r\n'
+            response = fileobj.readline()
+            assert response == 'test_echo\r\n'
