@@ -1,4 +1,4 @@
-import unittest, time, os
+import unittest, time, os, re
 
 import sshim, paramiko
 from time import sleep
@@ -6,9 +6,9 @@ from time import sleep
 class TestBasic(unittest.TestCase):
     def test_echo(self):
         def echo(script):
-            groups = script.expect('(?P<value>.*)').groupdict()
+            groups = script.expect(re.compile('(?P<value>.*)')).groupdict()
             assert groups['value'] == 'test_echo'
-            script.writeline('%(value)s' % groups)
+            script.writeline('return %(value)s' % groups)
 
         with sshim.Server(echo, port=3000) as server:
             ssh = paramiko.SSHClient()
@@ -17,5 +17,6 @@ class TestBasic(unittest.TestCase):
             channel = ssh.invoke_shell()
             fileobj = channel.makefile('rw')
             fileobj.write('test_echo\n')
-            response = fileobj.readline()
-            assert response == 'test_echo\r\n'
+            fileobj.flush()
+            assert fileobj.readline() == 'test_echo\r\n'
+            assert fileobj.readline() == 'return test_echo\r\n'
