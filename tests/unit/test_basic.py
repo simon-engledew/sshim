@@ -20,3 +20,4 @@ class TestBasic(unittest.TestCase):
             fileobj.flush()
             assert fileobj.readline() == 'test_echo\r\n'
             assert fileobj.readline() == 'return test_echo\r\n'
+            ssh.close()

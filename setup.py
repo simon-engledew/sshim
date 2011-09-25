@@ -16,6 +16,7 @@ setup(
     zip_safe=True,
     include_package_data=False,
     packages=find_packages(),
+    license='MIT',
     keywords = [
         'ssh',
         'paramiko',

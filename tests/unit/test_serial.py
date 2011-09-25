@@ -1,19 +1,28 @@
+import paramiko
 import unittest
 import sshim
 import re
 
-def echo(script):
-    groups = script.expect(re.compile('(?P<value>.*)')).groupdict()
-    script.writeline('%(value)s' % groups)
+def success(script):
+    script.writeline('success')
 
 class TestMultipleServers(unittest.TestCase):
-    def test_one_after_another(self):
-        with sshim.Server(echo, port=3000) as server:
-            self.assertTrue(server)
+    def assert_success(self):
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect('127.0.0.1', port=3000)
+        channel = ssh.invoke_shell()
+        fileobj = channel.makefile('rw')
+        self.assertEqual(fileobj.readline(), 'success\r\n')
+        ssh.close()
 
-        with sshim.Server(echo, port=3000) as server:
-            self.assertTrue(server)
+    def test_one_after_another(self):
+        with sshim.Server(success, port=3000) as server:
+            self.assert_success()
+
+        with sshim.Server(success, port=3000) as server:
+            self.assert_success()
 
     def test_another_server(self):
-        with sshim.Server(echo, port=3000) as server:
-            self.assertTrue(server)
+        with sshim.Server(success, port=3000) as server:
+            self.assert_success()
