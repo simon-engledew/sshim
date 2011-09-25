@@ -17,40 +17,13 @@ Or to run the tests::
 
     nosetests -x -s -w tests/
 
-Example::
+Example:
 
-    import sshim, re
+.. literalinclude:: examples/hello_world.py
 
-    def hello_world(script):
-        script.write('Please enter your name: ')
-        groups = script.expect(re.compile('(?P<name>.*)')).groupdict()
-        print '%(name)s just connected' % groups
-        script.writeline('Hello %(name)s!' % groups)
+Because SSHim uses Python to script the SSH server, complicated emulated interfaces can be created using branching, stored state and looping, e.g:
 
-    server = sshim.Server(hello_world, port=3000)
-    try:
-        server.run()
-    except KeyboardInterrupt:
-        server.stop()
-
-Because SSHim uses Python to script the SSH server, complicated emulated interfaces can be created using branching, stored state and looping, e.g::
-
-    import sshim, time, re
-
-    def counter(script):
-        while True:
-            for n in xrange(0, 10):
-                script.writeline(n)
-                time.sleep(0.1)
-            script.write('Again? (y/n): ')
-            groups = script.expect(re.compile('(?P<again>[yn])')).groupdict()
-            if groups['again'] != 'y': break
-
-    server = sshim.Server(counter, port=3000)
-    try:
-        server.run()
-    except KeyboardInterrupt:
-        server.stop()
+.. literalinclude:: examples/counter.py
 """
 
 from Server import Server

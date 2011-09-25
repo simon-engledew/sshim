@@ -36,9 +36,12 @@ Eez9wYRqHiuvU0rryYvGyokr62w1MtJO0tttnxe1Of6wzb1WeCU=
 
 class Server(threading.Thread):
     """
-
+        @todo
     """
-    def __init__(self, script, address='127.0.0.1', port=22, key=DEFAULT_KEY):
+    def __init__(self, script, address='127.0.0.1', port=22, key=None):
+        """
+            @todo
+        """
         threading.Thread.__init__(self)
         self.script = script
         self.daemon = True
@@ -46,7 +49,7 @@ class Server(threading.Thread):
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((address, port))
         self.address, self.port = address, port
-        self.key = key
+        self.key = key or DEFAULT_KEY
 
     def __enter__(self):
         self.start()
@@ -56,12 +59,18 @@ class Server(threading.Thread):
         self.stop()
 
     def stop(self):
+        """
+            @todo
+        """
         logging.info('stopping')
         self.socket.close()
         if self.is_alive():
             self.join()
 
     def run(self):
+        """
+            @todo
+        """
         try:
             self.socket.listen(5)
             logging.info('listening on port %d', self.port)
