@@ -124,7 +124,9 @@ class Actor(threading.Thread):
         try:
             fileobj = self.channel.makefile('rw')
             try:
-                self.script(Script(fileobj, self.client.transport))
+                value = self.script(Script(self.script, fileobj, self.client.transport))
+                if isinstance(value, threading.Thread):
+                    value.join()
             except:
                 fileobj.write('\r\n' + traceback.format_exc().replace('\n', '\r\n'))
                 raise
@@ -132,7 +134,8 @@ class Actor(threading.Thread):
             self.channel.close()
 
 class Script(object):
-    def __init__(self, fileobj, transport):
+    def __init__(self, delegate, fileobj, transport):
+        self.delegate = delegate
         self.transport = transport
         self.fileobj = fileobj
         self.values = {}
@@ -163,7 +166,10 @@ class Script(object):
             elif byte == '\x04':
                 raise EOFError()
             elif byte == '\x1b' and self.fileobj.read(1) == '[':
-                logger.debug('cursor: %s', self.fileobj.read(1))
+                command = self.fileobj.read(1)
+                if hasattr(self.delegate, 'cursor'):
+                    self.delegate.cursor(command)
+                logger.debug('cursor: %s', command)
             elif byte in ('\r', '\n'):
                 break
             else:
