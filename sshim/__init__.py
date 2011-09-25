@@ -3,7 +3,7 @@
 import paramiko, threading, socket, select, os, re, traceback, errno
 from StringIO import StringIO
 import logging, subprocess
-logging.basicConfig(level='DEBUG')
+
 logger = logging.getLogger()
 
 DEFAULT_KEY = paramiko.RSAKey(file_obj=StringIO("""-----BEGIN RSA PRIVATE KEY-----
@@ -42,6 +42,7 @@ class Server(threading.Thread):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((address, port))
+        self.address, self.port = address, port
         self.key = key
 
     def __enter__(self):
@@ -52,8 +53,10 @@ class Server(threading.Thread):
         self.stop()
 
     def stop(self):
+        logging.info('stopping')
         self.socket.close()
-        self.join()
+        if self.is_alive():
+            self.join()
 
     def check_channel_request(self, kind, channel_id):
         if kind in ('session',):
@@ -86,6 +89,7 @@ class Server(threading.Thread):
     def run(self):
         try:
             self.socket.listen(5)
+            logging.info('listening on port %d', self.port)
             while True:
                 r, w, x = select.select([self.socket], [], [], 1)
                 if r:

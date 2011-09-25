@@ -1,4 +1,6 @@
 import sshim, re
+import logging
+logging.basicConfig(level='DEBUG')
 
 def hello_world(script):
     script.write('Please enter your name: ')
@@ -6,7 +8,7 @@ def hello_world(script):
     print '%(name)s just connected' % groups
     script.writeline('Hello %(name)s!' % groups)
 
-server = sshim.Server(hello_world, port=3000)
+server = sshim.Server(counter, port=3000)
 try:
     server.run()
 except KeyboardInterrupt:
