@@ -8,7 +8,7 @@ def hello_world(script):
     print '%(name)s just connected' % groups
     script.writeline('Hello %(name)s!' % groups)
 
-server = sshim.Server(counter, port=3000)
+server = sshim.Server(hello_world, port=3000)
 try:
     server.run()
 except KeyboardInterrupt:

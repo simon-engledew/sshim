@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import paramiko, threading, socket, select, os, re, traceback, errno
+import paramiko, threading, socket, select, os, re, traceback, errno, inspect
 from StringIO import StringIO
 import logging, subprocess
 
@@ -58,6 +58,29 @@ class Server(threading.Thread):
         if self.is_alive():
             self.join()
 
+    def run(self):
+        try:
+            self.socket.listen(5)
+            logging.info('listening on port %d', self.port)
+            while True:
+                r, w, x = select.select([self.socket], [], [], 1)
+                if r:
+                    Client(self, self.socket.accept())
+        except select.error as (code, message):
+            if code != errno.EBADF:
+                raise
+        except socket.error as (code, message):
+            if code != errno.EBADF:
+                raise
+
+class Client(object):
+    def __init__(self, server, (client, (address, port))):
+        self.server = server
+        self.address, self.port = address, port
+        self.transport = paramiko.Transport(client)
+        self.transport.add_server_key(self.server.key)
+        self.transport.start_server(server=self)
+
     def check_channel_request(self, kind, channel_id):
         if kind in ('session',):
             return paramiko.OPEN_SUCCEEDED
@@ -80,42 +103,28 @@ class Server(threading.Thread):
 
     def check_channel_shell_request(self, channel):
         channel.setblocking(True)
-        Actor(self.script, channel).start()
+        Actor(self, channel).start()
         return True
 
     def check_channel_pty_request(self, channel, term, width, height, pixelwidth, pixelheight, modes):
         return True
 
-    def run(self):
-        try:
-            self.socket.listen(5)
-            logging.info('listening on port %d', self.port)
-            while True:
-                r, w, x = select.select([self.socket], [], [], 1)
-                if r:
-                    client, address = self.socket.accept()
-                    transport = paramiko.Transport(client)
-                    transport.add_server_key(self.key)
-                    transport.start_server(server=self)
-        except select.error as (code, message):
-            if code != errno.EBADF:
-                raise
-        except socket.error as (code, message):
-            if code != errno.EBADF:
-                raise
-
 class Actor(threading.Thread):
-    def __init__(self, script, channel):
+    def __init__(self, client, channel):
         threading.Thread.__init__(self)
         self.daemon = True
-        self.script = script
+        self.client = client
         self.channel = channel
+
+    @property
+    def script(self):
+        return self.client.server.script
 
     def run(self):
         try:
             fileobj = self.channel.makefile('rw')
             try:
-                self.script(Script(fileobj))
+                self.script(Script(fileobj, self.client.transport))
             except:
                 fileobj.write('\r\n' + traceback.format_exc().replace('\n', '\r\n'))
                 raise
@@ -123,9 +132,14 @@ class Actor(threading.Thread):
             self.channel.close()
 
 class Script(object):
-    def __init__(self, fileobj):
+    def __init__(self, fileobj, transport):
+        self.transport = transport
         self.fileobj = fileobj
         self.values = {}
+
+    @property
+    def username(self):
+        return self.transport.get_username()
 
     def write(self, line):
         self.fileobj.write(str(line))
