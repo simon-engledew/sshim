@@ -48,8 +48,17 @@ class Server(threading.Thread):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((address, port))
-        self.address, self.port = address, port
         self.key = key or DEFAULT_KEY
+
+    @property
+    def address(self):
+        address, port = self.socket.getsockname()
+        return address
+    
+    @property
+    def port(self):
+        address, port = self.socket.getsockname()
+        return port
 
     def __enter__(self):
         self.start()
@@ -78,10 +87,7 @@ class Server(threading.Thread):
                 r, w, x = select.select([self.socket], [], [], 1)
                 if r:
                     Client(self, self.socket.accept())
-        except select.error as (code, message):
-            if code != errno.EBADF:
-                raise
-        except socket.error as (code, message):
+        except (select.error, socket.error) as (code, message):
             if code != errno.EBADF:
                 raise
 
