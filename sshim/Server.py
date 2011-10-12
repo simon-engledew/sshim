@@ -36,11 +36,11 @@ Eez9wYRqHiuvU0rryYvGyokr62w1MtJO0tttnxe1Of6wzb1WeCU=
 
 class Server(threading.Thread):
     """
-        @todo
+        
     """
     def __init__(self, script, address='127.0.0.1', port=22, key=None):
         """
-            @todo
+            
         """
         threading.Thread.__init__(self)
         self.script = script
@@ -69,7 +69,7 @@ class Server(threading.Thread):
 
     def stop(self):
         """
-            @todo
+            Stop the server, waiting for the runloop to exit.
         """
         logging.info('stopping')
         self.socket.close()
@@ -78,7 +78,7 @@ class Server(threading.Thread):
 
     def run(self):
         """
-            @todo
+            Synchronously start the server in the current thread, blocking indefinitely.
         """
         try:
             self.socket.listen(5)
@@ -152,6 +152,8 @@ class Actor(threading.Thread):
             self.channel.close()
 
 class Script(object):
+    """
+    """
     def __init__(self, delegate, fileobj, transport):
         self.delegate = delegate
         self.transport = transport
@@ -163,12 +165,24 @@ class Script(object):
         return self.transport.get_username()
 
     def write(self, line):
+        """
+            Send str(line) to the client.
+        """
         self.fileobj.write(str(line))
 
     def writeline(self, line):
+        """
+            Send str(line) to the client and append a carriage return and newline.
+        """
         self.fileobj.write(str(line) + '\r\n')
 
     def expect(self, line):
+        """
+            Expect a line of input from the user. If this has the `match` method, it will call it on the input and return
+            the result, otherwise it will use the equality operator, ==. Notably, if a regular expression is passed in
+            its match method will be called and the matchdata returned. This allows you to use matching groups to pull
+            out interesting data and operate on it.
+        """
         buffer = StringIO()
         while True:
             byte = self.fileobj.read(1)

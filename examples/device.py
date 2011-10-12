@@ -1,8 +1,9 @@
-import sshim, re, shlex, threading
-from datetime import datetime
 import logging
 logging.basicConfig(level='DEBUG')
 logger = logging.getLogger()
+
+import sshim, re, shlex, threading
+from datetime import datetime
 
 class Device(threading.Thread):
     def __init__(self, script):

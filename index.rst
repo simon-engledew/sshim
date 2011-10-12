@@ -7,8 +7,7 @@ Using SSHim
 ===========
 
 .. automodule:: sshim
-    :members: Server
-    :members: Script
+    :members:
 
 Indices and tables
 ==================

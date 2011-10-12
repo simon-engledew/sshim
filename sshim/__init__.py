@@ -5,6 +5,10 @@ SSHim is a library for testing and debugging SSH automation clients. The aim is 
 
 Currently SSHim does just enough to fire up an SSH server using Paramiko and read and write values. Eventually it could be expanded to support additional channel types, scripted tunneling and more.
 
+To install from pypi::
+
+    pip install sshim
+
 To install as an egg-link in development mode::
 
     python setup.py develop -N
@@ -17,7 +21,7 @@ Or to run the tests::
 
     nosetests -x -s -w tests/
 
-Example:
+Simple Example:
 
 .. literalinclude:: examples/hello_world.py
 
@@ -26,4 +30,6 @@ Because SSHim uses Python to script the SSH server, complicated emulated interfa
 .. literalinclude:: examples/counter.py
 """
 
-from Server import Server
+from Server import Server, Script
+
+__all__ = ['Server', 'Script']
