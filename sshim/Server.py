@@ -39,9 +39,6 @@ class Server(threading.Thread):
         
     """
     def __init__(self, script, address='127.0.0.1', port=22, key=None):
-        """
-            
-        """
         threading.Thread.__init__(self)
         self.script = script
         self.daemon = True
