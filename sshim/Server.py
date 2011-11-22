@@ -102,6 +102,7 @@ class Client(object):
         return paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
 
     def check_channel_exec_request(self, channel, command):
+        logger.warning('paramiko.Channel(%d) was denied an exec request', channel.chanid)
         return False
 
     def check_auth_none(self, username):
@@ -117,11 +118,13 @@ class Client(object):
         return ('password', 'publickey', 'none')
 
     def check_channel_shell_request(self, channel):
+        logger.debug('paramiko.Channel(%d) was granted a shell request', channel.chanid)
         channel.setblocking(True)
         Actor(self, channel).start()
         return True
 
     def check_channel_pty_request(self, channel, term, width, height, pixelwidth, pixelheight, modes):
+        logger.debug('paramiko.Channel(%d) was granted a pty request', channel.chanid)
         return True
 
 class Actor(threading.Thread):
