@@ -1,7 +1,7 @@
-import unittest, time, os, re
-
-import sshim, paramiko
-from time import sleep
+import unittest
+import re
+import sshim
+import paramiko
 
 class TestBasic(unittest.TestCase):
     def test_echo(self):
@@ -10,7 +10,7 @@ class TestBasic(unittest.TestCase):
             assert groups['value'] == 'test_echo'
             script.writeline('return %(value)s' % groups)
 
-        with sshim.Server(echo, port=3000) as server:
+        with sshim.Server(echo, port=3000):
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             ssh.connect('127.0.0.1', port=3000)

@@ -1,7 +1,6 @@
 import paramiko
 import unittest
 import sshim
-import re
 
 def success(script):
     script.writeline('success')
@@ -17,12 +16,12 @@ class TestMultipleServers(unittest.TestCase):
         ssh.close()
 
     def test_one_after_another(self):
-        with sshim.Server(success, port=3000) as server:
+        with sshim.Server(success, port=3000):
             self.assert_success()
 
-        with sshim.Server(success, port=3000) as server:
+        with sshim.Server(success, port=3000):
             self.assert_success()
 
     def test_another_server(self):
-        with sshim.Server(success, port=3000) as server:
+        with sshim.Server(success, port=3000):
             self.assert_success()

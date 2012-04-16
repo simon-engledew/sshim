@@ -1,6 +1,15 @@
 # encoding: utf8
 
-import paramiko, threading, socket, select, os, re, traceback, errno, inspect, logging, subprocess
+import paramiko
+import threading
+import socket
+import select
+import traceback
+import errno
+import logging
+import Queue as queue
+import sys
+
 from StringIO import StringIO
 
 logger = logging.getLogger(__name__)
@@ -34,12 +43,39 @@ jCrc8nTlA0K0LtEnE+4g0an76nSWUNiP4kALROfZpXajRRaWdwFRAO17c9T7Uxc0
 Eez9wYRqHiuvU0rryYvGyokr62w1MtJO0tttnxe1Of6wzb1WeCU=
 -----END RSA PRIVATE KEY-----"""))
 
+class Counter(object):
+    def __init__(self, mutex=None):
+        self.mutex = mutex or threading.Lock()
+        self.count = 0
+        self.condition = threading.Condition(self.mutex)
+
+    def __enter__(self):
+        self.count += 1
+
+    def __exit__(self, *exc_info):
+        with self.condition:
+            count = self.count - 1
+            if count <= 0:
+                if count < 0:
+                    raise ValueError('Count decremented below zero')
+                self.condition.notify_all()
+            self.count = count
+
+    def join(self):
+        with self.condition:
+            while self.count:
+                self.condition.wait()
+
 class Server(threading.Thread):
     """
         
     """
     def __init__(self, script, address='127.0.0.1', port=22, key=None):
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, name='sshim.Server')
+        self.exceptions = queue.Queue()
+
+        self.counter = Counter()
+
         self.script = script
         self.daemon = True
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -72,6 +108,13 @@ class Server(threading.Thread):
         self.socket.close()
         if self.is_alive():
             self.join()
+        if not self.exceptions.empty():
+            exc_info = self.exceptions.get()
+            raise exc_info[0], exc_info[1], exc_info[2]
+
+    def join(self):
+        self.counter.join()
+        threading.Thread.join(self)
 
     def run(self):
         """
@@ -129,27 +172,45 @@ class Client(object):
 
 class Actor(threading.Thread):
     def __init__(self, client, channel):
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, name='sshim.Actor(%s)' % channel.get_id())
         self.daemon = True
         self.client = client
         self.channel = channel
 
     @property
     def script(self):
-        return self.client.server.script
+        return self.server.script
+
+    @property
+    def server(self):
+        return self.client.server
 
     def run(self):
-        try:
-            fileobj = self.channel.makefile('rw')
+        with self.server.counter:
             try:
-                value = self.script(Script(self.script, fileobj, self.client.transport))
-                if isinstance(value, threading.Thread):
-                    value.join()
+                fileobj = self.channel.makefile('rw')
+                try:
+                    value = self.script(Script(self.script, fileobj, self.client.transport))
+                    if isinstance(value, threading.Thread):
+                        value.join()
+                    remainder = fileobj.read()
+                    if remainder:
+                        logger.warning('Data left unread by %s:\t\n%s' % (self.name, repr(remainder)))
+                except:
+                    exc_info = sys.exc_info()
+                    exception_string = traceback.format_exc()
+                    try:
+                        fileobj.write('\r\n' + exception_string.replace('\n', '\r\n'))
+                    except:
+                        pass
+                    raise exc_info[0], exc_info[1], exc_info[2]
             except:
-                fileobj.write('\r\n' + traceback.format_exc().replace('\n', '\r\n'))
-                raise
-        finally:
-            self.channel.close()
+                self.server.exceptions.put_nowait(sys.exc_info())
+            finally:
+                try:
+                    self.channel.close()
+                except EOFError:
+                    logger.debug('Channel already closed')
 
 class Script(object):
     """
@@ -184,38 +245,43 @@ class Script(object):
             out interesting data and operate on it.
         """
         buffer = StringIO()
-        while True:
-            byte = self.fileobj.read(1)
 
-            if not byte:
-                break
-            elif byte == '\t':
-                pass
-            elif byte == '\x7f':
-                if buffer.len > 0:
-                    self.fileobj.write('\b \b')
-                    buffer.truncate(buffer.len - 1)
-            elif byte == '\x04':
-                raise EOFError()
-            elif byte == '\x1b' and self.fileobj.read(1) == '[':
-                command = self.fileobj.read(1)
-                if hasattr(self.delegate, 'cursor'):
-                    self.delegate.cursor(command)
-                logger.debug('cursor: %s', command)
-            elif byte in ('\r', '\n'):
-                break
+        try:
+            while True:
+                byte = self.fileobj.read(1)
+
+                if not byte:
+                    break
+                elif byte == '\t':
+                    pass
+                elif byte == '\x7f':
+                    if buffer.len > 0:
+                        self.fileobj.write('\b \b')
+                        buffer.truncate(buffer.len - 1)
+                elif byte == '\x04':
+                    raise EOFError()
+                elif byte == '\x1b' and self.fileobj.read(1) == '[':
+                    command = self.fileobj.read(1)
+                    if hasattr(self.delegate, 'cursor'):
+                        self.delegate.cursor(command)
+                    logger.debug('cursor: %s', command)
+                elif byte in ('\r', '\n'):
+                    break
+                else:
+                    logger.debug(repr(byte))
+                    buffer.write(byte)
+                    self.fileobj.write(byte)
+
+            self.fileobj.write('\r\n')
+
+            if hasattr(line, 'match'):
+                match = line.match(buffer.getvalue())
+                if match:
+                    return match
             else:
-                logger.debug(repr(byte))
-                buffer.write(byte)
-                self.fileobj.write(byte)
-        self.fileobj.write('\r\n')
+                if line == buffer.getvalue():
+                    return line
+        except:
+            logger.exception('Exception in actor')
 
-        if hasattr(line, 'match'):
-            match = line.match(buffer.getvalue())
-            if match:
-                return match
-        else:
-            if line == buffer.getvalue():
-                return line
-
-        raise ValueError('failed to match "%s" against "%s"' % (line, buffer.getvalue()))
+        raise AssertionError('failed to match "%s" against "%s"' % (line, buffer.getvalue()))
