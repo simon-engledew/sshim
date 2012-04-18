@@ -229,13 +229,18 @@ class Script(object):
         """
             Send str(line) to the client.
         """
-        self.fileobj.write(str(line))
+        try:
+            self.fileobj.write(str(line))
+        except socket.error:
+            pass
+        except EOFError:
+            pass
 
     def writeline(self, line):
         """
             Send str(line) to the client and append a carriage return and newline.
         """
-        self.fileobj.write(str(line) + '\r\n')
+        self.write(str(line) + '\r\n')
 
     def expect(self, line):
         """
@@ -256,7 +261,7 @@ class Script(object):
                     pass
                 elif byte == '\x7f':
                     if buffer.len > 0:
-                        self.fileobj.write('\b \b')
+                        self.write('\b \b')
                         buffer.truncate(buffer.len - 1)
                 elif byte == '\x04':
                     raise EOFError()
@@ -270,9 +275,9 @@ class Script(object):
                 else:
                     logger.debug(repr(byte))
                     buffer.write(byte)
-                    self.fileobj.write(byte)
+                    self.write(byte)
 
-            self.fileobj.write('\r\n')
+            self.write('\r\n')
 
             if hasattr(line, 'match'):
                 match = line.match(buffer.getvalue())
