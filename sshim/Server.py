@@ -66,17 +66,57 @@ class Counter(object):
             while self.count:
                 self.condition.wait()
 
+class Handler(object):
+    def __init__(self, server, (client, (address, port))):
+        self.server = server
+        self.address, self.port = address, port
+        self.transport = paramiko.Transport(client)
+        self.transport.add_server_key(self.server.key)
+        self.transport.start_server(server=self)
+
+    def check_channel_request(self, kind, channel_id):
+        if kind in ('session',):
+            return paramiko.OPEN_SUCCEEDED
+        return paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
+
+    def check_channel_exec_request(self, channel, command):
+        logger.warning('paramiko.Channel(%d) was denied an exec request', channel.chanid)
+        return False
+
+    def check_auth_none(self, username):
+        return paramiko.AUTH_SUCCESSFUL
+
+    def check_auth_password(self, username, password):
+        return paramiko.AUTH_SUCCESSFUL
+
+    def check_auth_publickey(self, username, key):
+        return paramiko.AUTH_SUCCESSFUL
+
+    def get_allowed_auths(self, username):
+        return ('password', 'publickey', 'none')
+
+    def check_channel_shell_request(self, channel):
+        logger.debug('paramiko.Channel(%d) was granted a shell request', channel.chanid)
+        channel.setblocking(True)
+        Actor(self, channel).start()
+        return True
+
+    def check_channel_pty_request(self, channel, term, width, height, pixelwidth, pixelheight, modes):
+        logger.debug('paramiko.Channel(%d) was granted a pty request', channel.chanid)
+        return True
+
 class Server(threading.Thread):
     """
         
     """
-    def __init__(self, script, address='127.0.0.1', port=22, key=None):
+    def __init__(self, delegate, address='127.0.0.1', port=22, key=None, handler=Handler):
         threading.Thread.__init__(self, name='sshim.Server')
         self.exceptions = queue.Queue()
 
         self.counter = Counter()
+        self.handler = handler
 
-        self.script = script
+        self.delegate = delegate
         self.daemon = True
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -126,49 +166,10 @@ class Server(threading.Thread):
             while True:
                 r, w, x = select.select([self.socket], [], [], 1)
                 if r:
-                    Client(self, self.socket.accept())
+                    self.handler(self, self.socket.accept())
         except (select.error, socket.error) as (code, message):
             if code != errno.EBADF:
                 raise
-
-class Client(object):
-    def __init__(self, server, (client, (address, port))):
-        self.server = server
-        self.address, self.port = address, port
-        self.transport = paramiko.Transport(client)
-        self.transport.add_server_key(self.server.key)
-        self.transport.start_server(server=self)
-
-    def check_channel_request(self, kind, channel_id):
-        if kind in ('session',):
-            return paramiko.OPEN_SUCCEEDED
-        return paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
-
-    def check_channel_exec_request(self, channel, command):
-        logger.warning('paramiko.Channel(%d) was denied an exec request', channel.chanid)
-        return False
-
-    def check_auth_none(self, username):
-        return paramiko.AUTH_SUCCESSFUL
-
-    def check_auth_password(self, username, password):
-        return paramiko.AUTH_SUCCESSFUL
-
-    def check_auth_publickey(self, username, key):
-        return paramiko.AUTH_SUCCESSFUL
-
-    def get_allowed_auths(self, username):
-        return ('password', 'publickey', 'none')
-
-    def check_channel_shell_request(self, channel):
-        logger.debug('paramiko.Channel(%d) was granted a shell request', channel.chanid)
-        channel.setblocking(True)
-        Actor(self, channel).start()
-        return True
-
-    def check_channel_pty_request(self, channel, term, width, height, pixelwidth, pixelheight, modes):
-        logger.debug('paramiko.Channel(%d) was granted a pty request', channel.chanid)
-        return True
 
 class Actor(threading.Thread):
     def __init__(self, client, channel):
@@ -178,8 +179,8 @@ class Actor(threading.Thread):
         self.channel = channel
 
     @property
-    def script(self):
-        return self.server.script
+    def delegate(self):
+        return self.server.delegate
 
     @property
     def server(self):
@@ -190,10 +191,13 @@ class Actor(threading.Thread):
             try:
                 fileobj = self.channel.makefile('rw')
                 try:
-                    value = self.script(Script(self.script, fileobj, self.client.transport))
+                    value = self.delegate(Script(self.delegate, fileobj, self.client.transport))
+                    
                     if isinstance(value, threading.Thread):
                         value.join()
+                    
                     remainder = fileobj.read()
+
                     if remainder:
                         logger.warning('Data left unread by %s:\t\n%s' % (self.name, repr(remainder)))
                 except:

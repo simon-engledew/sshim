@@ -30,6 +30,6 @@ Because SSHim uses Python to script the SSH server, complicated emulated interfa
 .. literalinclude:: examples/counter.py
 """
 
-from Server import Server, Script
+from Server import Server, Script, Handler
 
-__all__ = ['Server', 'Script']
+__all__ = ['Server', 'Script', 'Handler']
