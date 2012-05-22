@@ -195,11 +195,7 @@ class Actor(threading.Thread):
                     
                     if isinstance(value, threading.Thread):
                         value.join()
-                    
-                    remainder = fileobj.read()
 
-                    if remainder:
-                        logger.warning('Data left unread by %s:\t\n%s' % (self.name, repr(remainder)))
                 except:
                     exc_info = sys.exc_info()
                     exception_string = traceback.format_exc()
@@ -285,7 +281,7 @@ class Script(object):
 
             if hasattr(line, 'match'):
                 match = line.match(buffer.getvalue())
-                if match:
+                if match is not None:
                     return match
             else:
                 if line == buffer.getvalue():
