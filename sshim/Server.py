@@ -107,7 +107,7 @@ class Handler(object):
 
 class Server(threading.Thread):
     """
-        
+
     """
     def __init__(self, delegate, address='127.0.0.1', port=22, key=None, handler=Handler):
         threading.Thread.__init__(self, name='sshim.Server')
@@ -127,7 +127,7 @@ class Server(threading.Thread):
     def address(self):
         address, port = self.socket.getsockname()
         return address
-    
+
     @property
     def port(self):
         address, port = self.socket.getsockname()
@@ -192,7 +192,7 @@ class Actor(threading.Thread):
                 fileobj = self.channel.makefile('rw')
                 try:
                     value = self.delegate(Script(self.delegate, fileobj, self.client.transport))
-                    
+
                     if isinstance(value, threading.Thread):
                         value.join()
 
@@ -255,15 +255,14 @@ class Script(object):
             while True:
                 byte = self.fileobj.read(1)
 
-                if not byte:
-                    break
+                if not byte or byte == '\x04':
+                    raise EOFError()
                 elif byte == '\t':
                     pass
                 elif byte == '\x7f':
                     if buffer.len > 0:
                         self.write('\b \b')
                         buffer.truncate(buffer.len - 1)
-                elif byte == '\x04':
                     raise EOFError()
                 elif byte == '\x1b' and self.fileobj.read(1) == '[':
                     command = self.fileobj.read(1)
