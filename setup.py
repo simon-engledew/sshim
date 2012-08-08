@@ -10,8 +10,7 @@ setup(
     url="http://www.engledew.com",
 
     install_requires = [
-        'paramiko>=1.7.7.1',
-        'pycrypto>=2.3',
+        'ssh>=1.7.14',
     ],
     zip_safe=True,
     include_package_data=False,

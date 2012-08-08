@@ -1,6 +1,6 @@
 # encoding: utf8
 
-import paramiko
+import ssh
 import threading
 import socket
 import select
@@ -14,7 +14,7 @@ from StringIO import StringIO
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_KEY = paramiko.RSAKey(file_obj=
+DEFAULT_KEY = ssh.RSAKey(file_obj=
 StringIO("""-----BEGIN RSA PRIVATE KEY-----
 MIIEogIBAAKCAQEAnahBtR7uxtHmk5UwlFfpC/zxdxjUKPD8UpNOOtIJwpei7gaZ
 +Jgub5GFJtTG6CK+DIZiR4tE9JxMjTEFDCGA3U4C36shHB15Pl3bLx+UxdyFylpc
@@ -70,39 +70,39 @@ class Handler(object):
     def __init__(self, server, (client, (address, port))):
         self.server = server
         self.address, self.port = address, port
-        self.transport = paramiko.Transport(client)
+        self.transport = ssh.Transport(client)
         self.transport.add_server_key(self.server.key)
         self.transport.start_server(server=self)
 
     def check_channel_request(self, kind, channel_id):
         if kind in ('session',):
-            return paramiko.OPEN_SUCCEEDED
-        return paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
+            return ssh.OPEN_SUCCEEDED
+        return ssh.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
 
     def check_channel_exec_request(self, channel, command):
-        logger.warning('paramiko.Channel(%d) was denied an exec request', channel.chanid)
+        logger.warning('ssh.Channel(%d) was denied an exec request', channel.chanid)
         return False
 
     def check_auth_none(self, username):
-        return paramiko.AUTH_SUCCESSFUL
+        return ssh.AUTH_SUCCESSFUL
 
     def check_auth_password(self, username, password):
-        return paramiko.AUTH_SUCCESSFUL
+        return ssh.AUTH_SUCCESSFUL
 
     def check_auth_publickey(self, username, key):
-        return paramiko.AUTH_SUCCESSFUL
+        return ssh.AUTH_SUCCESSFUL
 
     def get_allowed_auths(self, username):
         return ('password', 'publickey', 'none')
 
     def check_channel_shell_request(self, channel):
-        logger.debug('paramiko.Channel(%d) was granted a shell request', channel.chanid)
+        logger.debug('ssh.Channel(%d) was granted a shell request', channel.chanid)
         channel.setblocking(True)
         Actor(self, channel).start()
         return True
 
     def check_channel_pty_request(self, channel, term, width, height, pixelwidth, pixelheight, modes):
-        logger.debug('paramiko.Channel(%d) was granted a pty request', channel.chanid)
+        logger.debug('ssh.Channel(%d) was granted a pty request', channel.chanid)
         return True
 
 class Server(threading.Thread):
