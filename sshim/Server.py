@@ -242,12 +242,14 @@ class Script(object):
         """
         self.write(str(line) + '\r\n')
 
-    def expect(self, line):
+    def expect(self, line, echo=True):
         """
             Expect a line of input from the user. If this has the `match` method, it will call it on the input and return
             the result, otherwise it will use the equality operator, ==. Notably, if a regular expression is passed in
             its match method will be called and the matchdata returned. This allows you to use matching groups to pull
             out interesting data and operate on it.
+
+            If ``echo`` is set to False, the server will not echo the input back to the client.
         """
         buffer = StringIO()
 
@@ -274,9 +276,11 @@ class Script(object):
                 else:
                     logger.debug(repr(byte))
                     buffer.write(byte)
-                    self.write(byte)
+                    if echo:
+                        self.write(byte)
 
-            self.write('\r\n')
+            if echo:
+                self.write('\r\n')
 
             if hasattr(line, 'match'):
                 match = line.match(buffer.getvalue())
