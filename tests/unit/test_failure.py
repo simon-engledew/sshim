@@ -22,7 +22,6 @@ class TestFailure(unittest.TestCase):
     def test_eof(self):
         def echo(script):
             script.expect('goose')
-            script.expect('')
 
         with sshim.Server(echo, port=3000):
             ssh = paramiko.SSHClient()

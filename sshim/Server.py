@@ -275,17 +275,18 @@ class Script(object):
                     logger.debug(repr(byte))
                     buffer.write(byte)
                     self.write(byte)
+            value = buffer.getvalue().decode('utf-8')
 
             self.write('\r\n')
 
             if hasattr(line, 'match'):
-                match = line.match(buffer.getvalue())
+                match = line.match(value)
                 if match is not None:
                     return match
             else:
-                if line == buffer.getvalue():
+                if line == value:
                     return line
         except:
             logger.exception('Exception in actor')
 
-        raise AssertionError('failed to match "%s" against "%s"' % (line, buffer.getvalue()))
+        raise AssertionError('failed to match "%s" against "%s"' % (line.encode('utf-8'), value.encode('utf-8')))
