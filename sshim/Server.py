@@ -109,9 +109,11 @@ class Server(threading.Thread):
     """
 
     """
-    def __init__(self, delegate, address='127.0.0.1', port=22, key=None, handler=Handler):
+    def __init__(self, delegate, address='127.0.0.1', port=22, key=None, timeout=None, handler=Handler):
         threading.Thread.__init__(self, name='sshim.Server')
         self.exceptions = queue.Queue()
+
+        self.timeout = timeout
 
         self.counter = Counter()
         self.handler = handler
@@ -177,6 +179,7 @@ class Actor(threading.Thread):
         self.daemon = True
         self.client = client
         self.channel = channel
+        self.channel.settimeout(self.server.timeout)
 
     @property
     def delegate(self):
