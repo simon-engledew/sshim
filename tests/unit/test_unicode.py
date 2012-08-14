@@ -9,11 +9,11 @@ class TestUnicode(unittest.TestCase):
     def test_unicode_echo(self):
         def echo(script):
             groups = script.expect(re.compile(u'(?P<value>.*)')).groupdict()
-            value = groups['value'].decode('utf8')
+            value = groups['value']
             assert value == u'£test'
-            script.writeline(u'return {0}'.format(value).encode('utf8'))
+            script.writeline(u'return {0}'.format(value))
 
-        with sshim.Server(echo, port=0) as server:
+        with sshim.Server(echo, port=0, encoding='utf8') as server:
             client = ssh.SSHClient()
             client.set_missing_host_key_policy(ssh.AutoAddPolicy())
             client.connect('127.0.0.1', port=server.port)

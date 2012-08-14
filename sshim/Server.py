@@ -1,5 +1,6 @@
 # encoding: utf8
 
+import codecs
 import ssh
 import threading
 import socket
@@ -109,10 +110,11 @@ class Server(threading.Thread):
     """
 
     """
-    def __init__(self, delegate, address='127.0.0.1', port=22, key=None, timeout=None, handler=Handler):
+    def __init__(self, delegate, address='127.0.0.1', port=22, key=None, timeout=None, encoding='ascii', handler=Handler):
         threading.Thread.__init__(self, name='sshim.Server')
         self.exceptions = queue.Queue()
 
+        self.encoding = encoding
         self.timeout = timeout
 
         self.counter = Counter()
@@ -194,7 +196,7 @@ class Actor(threading.Thread):
             try:
                 fileobj = self.channel.makefile('rw')
                 try:
-                    value = self.delegate(Script(self.delegate, fileobj, self.client.transport))
+                    value = self.delegate(Script(self.delegate, fileobj, self.client.transport, encoding=self.server.encoding))
 
                     if isinstance(value, threading.Thread):
                         value.join()
@@ -203,7 +205,9 @@ class Actor(threading.Thread):
                     exc_info = sys.exc_info()
                     exception_string = traceback.format_exc()
                     try:
-                        fileobj.write('\r\n' + exception_string.replace('\n', '\r\n'))
+                        fileobj.write(
+                            (u'\r\n' + unicode(exception_string).replace(u'\n', u'\r\n')).encode(self.server.encoding)
+                        )
                     except:
                         pass
                     raise exc_info[0], exc_info[1], exc_info[2]
@@ -218,8 +222,9 @@ class Actor(threading.Thread):
 class Script(object):
     """
     """
-    def __init__(self, delegate, fileobj, transport):
+    def __init__(self, delegate, fileobj, transport, encoding='ascii'):
         self.delegate = delegate
+        self.encoding = encoding
         self.transport = transport
         self.fileobj = fileobj
         self.values = {}
@@ -228,22 +233,28 @@ class Script(object):
     def username(self):
         return self.transport.get_username()
 
-    def write(self, line):
+    def sendall(self, bytes):
         """
-            Send str(line) to the client.
+            Send raw encoded bytes to the client.
         """
         try:
-            self.fileobj.write(str(line))
+            self.fileobj.write(bytes)
         except socket.error:
             pass
         except EOFError:
             pass
 
+    def write(self, line):
+        """
+            Send unicode to the client.
+        """
+        self.sendall(unicode(line).encode(self.encoding))
+
     def writeline(self, line):
         """
-            Send str(line) to the client and append a carriage return and newline.
+            Send unicode to the client and append a carriage return and newline.
         """
-        self.write(str(line) + '\r\n')
+        self.sendall((unicode(line) + u'\r\n').encode(self.encoding))
 
     def expect(self, line, echo=True):
         """
@@ -266,7 +277,7 @@ class Script(object):
                     pass
                 elif byte == '\x7f':
                     if buffer.len > 0:
-                        self.write('\b \b')
+                        self.sendall('\b \b')
                         buffer.truncate(buffer.len - 1)
                     raise EOFError()
                 elif byte == '\x1b' and self.fileobj.read(1) == '[':
@@ -280,13 +291,13 @@ class Script(object):
                     logger.debug(repr(byte))
                     buffer.write(byte)
                     if echo:
-                        self.write(byte)
+                        self.sendall(byte)
 
             if echo:
-                self.write('\r\n')
+                self.sendall('\r\n')
 
             if hasattr(line, 'match'):
-                match = line.match(buffer.getvalue())
+                match = line.match(buffer.getvalue().decode(self.encoding))
                 if match is not None:
                     return match
             else:
@@ -294,5 +305,6 @@ class Script(object):
                     return line
         except:
             logger.exception('Exception in actor')
+            raise
 
-        raise AssertionError('failed to match "%s" against "%s"' % (line, buffer.getvalue()))
+        raise AssertionError('failed to match %r against %r' % (line, buffer.getvalue().decode(self.encoding)))
