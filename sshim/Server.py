@@ -170,7 +170,9 @@ class Server(threading.Thread):
             while True:
                 r, w, x = select.select([self.socket], [], [], 1)
                 if r:
-                    self.handler(self, self.socket.accept())
+                    connection, address = self.socket.accept()
+                    if connection.recv(1, socket.MSG_PEEK):
+                        self.handler(self, (connection, address))
         except (select.error, socket.error) as (code, message):
             if code != errno.EBADF:
                 raise
