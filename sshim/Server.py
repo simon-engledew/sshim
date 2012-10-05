@@ -171,8 +171,8 @@ class Server(threading.Thread):
                 r, w, x = select.select([self.socket], [], [], 1)
                 if r:
                     connection, address = self.socket.accept()
-                    if connection.recv(1, socket.MSG_PEEK):
-                        self.handler(self, (connection, address))
+                    #if connection.recv(1, socket.MSG_PEEK):
+                    self.handler(self, (connection, address))
         except (select.error, socket.error) as (code, message):
             if code != errno.EBADF:
                 raise
@@ -281,7 +281,6 @@ class Script(object):
                     if buffer.len > 0:
                         self.sendall('\b \b')
                         buffer.truncate(buffer.len - 1)
-                    raise EOFError()
                 elif byte == '\x1b' and self.fileobj.read(1) == '[':
                     command = self.fileobj.read(1)
                     if hasattr(self.delegate, 'cursor'):
