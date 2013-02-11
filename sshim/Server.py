@@ -94,7 +94,7 @@ class Handler(object):
         return ssh.AUTH_SUCCESSFUL
 
     def get_allowed_auths(self, username):
-        return ('password', 'publickey', 'none')
+        return ','.join(('password', 'publickey', 'none'))
 
     def check_channel_shell_request(self, channel):
         logger.debug('ssh.Channel(%d) was granted a shell request', channel.chanid)
