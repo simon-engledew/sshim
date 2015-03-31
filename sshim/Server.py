@@ -81,8 +81,7 @@ class Handler(object):
         return ssh.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
 
     def check_channel_exec_request(self, channel, command):
-        logger.warning('ssh.Channel(%d) was denied an exec request', channel.chanid)
-        return False
+        raise NotImplemented('ssh.Channel(%d) was denied an exec request', channel.chanid)
 
     def check_auth_none(self, username):
         return ssh.AUTH_SUCCESSFUL
