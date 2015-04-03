@@ -181,9 +181,9 @@ class Server(threading.Thread):
             while True:
                 r, w, x = select.select([self.socket], [], [], 1)
                 if r:
-		    sock = self.socket.accept()
+                    sock = self.socket.accept()
                     client, address, port = (sock[0], sock[1][0], sock[1][1])
-		    self.handler(self, client, address, port)
+                    self.handler(self, client, address, port)
         except (select.error, socket.error):
             if socket.error.errno != errno.EBADF:
                 raise
