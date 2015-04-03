@@ -10,7 +10,7 @@ setup(
     url="http://www.engledew.com",
 
     install_requires = [
-        'ssh>=1.7.14',
+        'paramiko',
     ],
     zip_safe=True,
     include_package_data=False,

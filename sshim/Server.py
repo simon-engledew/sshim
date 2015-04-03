@@ -1,21 +1,29 @@
 # encoding: utf8
 
 import codecs
-import ssh
+import paramiko
 import threading
 import socket
 import select
 import traceback
 import errno
 import logging
-import Queue as queue
+
+try:
+    import Queue as queue
+except ImportError:
+    from queue import Queue
+
 import sys
 
-from StringIO import StringIO
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_KEY = ssh.RSAKey(file_obj=
+DEFAULT_KEY = paramiko.rsakey.RSAKey(file_obj=
 StringIO("""-----BEGIN RSA PRIVATE KEY-----
 MIIEogIBAAKCAQEAnahBtR7uxtHmk5UwlFfpC/zxdxjUKPD8UpNOOtIJwpei7gaZ
 +Jgub5GFJtTG6CK+DIZiR4tE9JxMjTEFDCGA3U4C36shHB15Pl3bLx+UxdyFylpc
@@ -68,38 +76,42 @@ class Counter(object):
                 self.condition.wait()
 
 class Handler(object):
-    def __init__(self, server, (client, (address, port))):
+    def __init__(self, server, client=None, address=None, port=None):
         self.server = server
         self.address, self.port = address, port
-        self.transport = ssh.Transport(client)
+        self.transport = paramiko.transport.Transport(client)
         self.transport.add_server_key(self.server.key)
         self.transport.start_server(server=self)
 
     def check_channel_request(self, kind, channel_id):
         if kind in ('session',):
-            return ssh.OPEN_SUCCEEDED
-        return ssh.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
+            return paramiko.OPEN_SUCCEEDED
+        return paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
 
     def check_channel_exec_request(self, channel, command):
-        raise NotImplemented('ssh.Channel(%d) was denied an exec request', channel.chanid)
+        logger.warning('ssh.Channel(%d) was denied an exec request', channel.chanid)
+        return False
 
     def check_auth_none(self, username):
-        return ssh.AUTH_SUCCESSFUL
+        return paramiko.AUTH_SUCCESSFUL
 
     def check_auth_password(self, username, password):
-        return ssh.AUTH_SUCCESSFUL
+        return paramiko.AUTH_SUCCESSFUL
 
     def check_auth_publickey(self, username, key):
-        return ssh.AUTH_SUCCESSFUL
+        return paramiko.AUTH_SUCCESSFUL
 
     def get_allowed_auths(self, username):
-        return ','.join(('password', 'publickey', 'none'))
+        return ('password', 'publickey', 'none')
 
     def check_channel_shell_request(self, channel):
         logger.debug('ssh.Channel(%d) was granted a shell request', channel.chanid)
         channel.setblocking(True)
         Actor(self, channel).start()
         return True
+
+    def enable_auth_gssapi(self):
+        return paramiko.AUTH_SUCCESSFUL
 
     def check_channel_pty_request(self, channel, term, width, height, pixelwidth, pixelheight, modes):
         logger.debug('ssh.Channel(%d) was granted a pty request', channel.chanid)
@@ -153,7 +165,7 @@ class Server(threading.Thread):
             self.join()
         if not self.exceptions.empty():
             exc_info = self.exceptions.get()
-            raise exc_info[0], exc_info[1], exc_info[2]
+            raise (exc_info[0], exc_info[1], exc_info[2])
 
     def join(self):
         self.counter.join()
@@ -169,11 +181,11 @@ class Server(threading.Thread):
             while True:
                 r, w, x = select.select([self.socket], [], [], 1)
                 if r:
-                    connection, address = self.socket.accept()
-                    #if connection.recv(1, socket.MSG_PEEK):
-                    self.handler(self, (connection, address))
-        except (select.error, socket.error) as (code, message):
-            if code != errno.EBADF:
+		    sock = self.socket.accept()
+                    client, address, port = (sock[0], sock[1][0], sock[1][1])
+		    self.handler(self, client, address, port)
+        except (select.error, socket.error):
+            if socket.error.errno != errno.EBADF:
                 raise
 
 class Actor(threading.Thread):
@@ -211,7 +223,7 @@ class Actor(threading.Thread):
                         )
                     except:
                         pass
-                    raise exc_info[0], exc_info[1], exc_info[2]
+                    raise (exc_info[0], exc_info[1], exc_info[2])
             except:
                 self.server.exceptions.put_nowait(sys.exc_info())
             finally:
@@ -280,6 +292,7 @@ class Script(object):
                     if buffer.len > 0:
                         self.sendall('\b \b')
                         buffer.truncate(buffer.len - 1)
+                    raise EOFError()
                 elif byte == '\x1b' and self.fileobj.read(1) == '[':
                     command = self.fileobj.read(1)
                     if hasattr(self.delegate, 'cursor'):
