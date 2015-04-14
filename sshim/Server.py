@@ -1,21 +1,41 @@
 # encoding: utf8
 
 import codecs
-import ssh
+import paramiko
 import threading
 import socket
 import select
 import traceback
 import errno
 import logging
-import Queue as queue
+try:
+  import Queue as queue
+except ImportError:
+  import queue
 import sys
 
-from StringIO import StringIO
+try:
+    from sshim.reraise2 import reraise
+except SyntaxError:
+    from sshim.reraise3 import reraise
+
+if sys.version < '3':
+    def u(value):
+        return unicode(value)
+else:
+    def u(value):
+        return str(value)
+
+from io import BytesIO
+
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_KEY = ssh.RSAKey(file_obj=
+DEFAULT_KEY = paramiko.rsakey.RSAKey(file_obj=
 StringIO("""-----BEGIN RSA PRIVATE KEY-----
 MIIEogIBAAKCAQEAnahBtR7uxtHmk5UwlFfpC/zxdxjUKPD8UpNOOtIJwpei7gaZ
 +Jgub5GFJtTG6CK+DIZiR4tE9JxMjTEFDCGA3U4C36shHB15Pl3bLx+UxdyFylpc
@@ -68,42 +88,46 @@ class Counter(object):
                 self.condition.wait()
 
 class Handler(object):
-    def __init__(self, server, (client, (address, port))):
+    def __init__(self, server, connection):
+        (client, (address, port)) = connection
         self.server = server
         self.address, self.port = address, port
-        self.transport = ssh.Transport(client)
+        self.transport = paramiko.transport.Transport(client)
         self.transport.add_server_key(self.server.key)
         self.transport.start_server(server=self)
 
     def check_channel_request(self, kind, channel_id):
         if kind in ('session',):
-            return ssh.OPEN_SUCCEEDED
-        return ssh.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
+            return paramiko.OPEN_SUCCEEDED
+        return paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
 
     def check_channel_exec_request(self, channel, command):
-        logger.warning('ssh.Channel(%d) was denied an exec request', channel.chanid)
+        logger.warning('Channel(%d) was denied an exec request', channel.chanid)
         return False
 
     def check_auth_none(self, username):
-        return ssh.AUTH_SUCCESSFUL
+        return paramiko.AUTH_SUCCESSFUL
 
     def check_auth_password(self, username, password):
-        return ssh.AUTH_SUCCESSFUL
+        return paramiko.AUTH_SUCCESSFUL
 
     def check_auth_publickey(self, username, key):
-        return ssh.AUTH_SUCCESSFUL
+        return paramiko.AUTH_SUCCESSFUL
 
     def get_allowed_auths(self, username):
         return ','.join(('password', 'publickey', 'none'))
 
     def check_channel_shell_request(self, channel):
-        logger.debug('ssh.Channel(%d) was granted a shell request', channel.chanid)
+        logger.debug('Channel(%d) was granted a shell request', channel.chanid)
         channel.setblocking(True)
         Actor(self, channel).start()
         return True
 
+    def enable_auth_gssapi(self):
+        return paramiko.AUTH_SUCCESSFUL
+
     def check_channel_pty_request(self, channel, term, width, height, pixelwidth, pixelheight, modes):
-        logger.debug('ssh.Channel(%d) was granted a pty request', channel.chanid)
+        logger.debug('Channel(%d) was granted a pty request', channel.chanid)
         return True
 
 class Server(threading.Thread):
@@ -153,8 +177,7 @@ class Server(threading.Thread):
         if self.is_alive():
             self.join()
         if not self.exceptions.empty():
-            exc_info = self.exceptions.get()
-            raise exc_info[0], exc_info[1], exc_info[2]
+            reraise(self.exceptions.get())
 
     def join(self):
         self.counter.join()
@@ -173,9 +196,14 @@ class Server(threading.Thread):
                     connection, address = self.socket.accept()
                     #if connection.recv(1, socket.MSG_PEEK):
                     self.handler(self, (connection, address))
-        except (select.error, socket.error) as (code, message):
-            if code != errno.EBADF:
-                raise
+        except (select.error, socket.error) as exception:
+            if hasattr(exception, 'errno'):
+                if exception.errno != errno.EBADF:
+                    raise
+            else:
+                (code, message) = exception.args
+                if code != errno.EBADF:
+                    raise
 
 class Actor(threading.Thread):
     def __init__(self, client, channel):
@@ -208,11 +236,11 @@ class Actor(threading.Thread):
                     exception_string = traceback.format_exc()
                     try:
                         fileobj.write(
-                            (u'\r\n' + unicode(exception_string).replace(u'\n', u'\r\n')).encode(self.server.encoding)
+                            (u'\r\n' + u(exception_string).replace(u'\n', u'\r\n')).encode(self.server.encoding)
                         )
                     except:
                         pass
-                    raise exc_info[0], exc_info[1], exc_info[2]
+                    reraise(exc_info)
             except:
                 self.server.exceptions.put_nowait(sys.exc_info())
             finally:
@@ -250,13 +278,13 @@ class Script(object):
         """
             Send unicode to the client.
         """
-        self.sendall(unicode(line).encode(self.encoding))
+        self.sendall(u(line).encode(self.encoding))
 
     def writeline(self, line):
         """
             Send unicode to the client and append a carriage return and newline.
         """
-        self.sendall((unicode(line) + u'\r\n').encode(self.encoding))
+        self.sendall((u(line) + u'\r\n').encode(self.encoding))
 
     def expect(self, line, echo=True):
         """
@@ -267,7 +295,7 @@ class Script(object):
 
             If ``echo`` is set to False, the server will not echo the input back to the client.
         """
-        buffer = StringIO()
+        buffer = BytesIO()
 
         try:
             while True:
@@ -275,18 +303,18 @@ class Script(object):
 
                 if not byte or byte == '\x04':
                     raise EOFError()
-                elif byte == '\t':
+                elif byte == b'\t':
                     pass
-                elif byte == '\x7f':
+                elif byte == b'\x7f':
                     if buffer.len > 0:
                         self.sendall('\b \b')
                         buffer.truncate(buffer.len - 1)
-                elif byte == '\x1b' and self.fileobj.read(1) == '[':
+                elif byte == b'\x1b' and self.fileobj.read(1) == b'[':
                     command = self.fileobj.read(1)
                     if hasattr(self.delegate, 'cursor'):
                         self.delegate.cursor(command)
                     logger.debug('cursor: %s', command)
-                elif byte in ('\r', '\n'):
+                elif byte in (b'\r', b'\n'):
                     break
                 else:
                     logger.debug(repr(byte))
@@ -302,7 +330,7 @@ class Script(object):
                 if match is not None:
                     return match
             else:
-                if line == buffer.getvalue():
+                if line == buffer.getvalue().decode(self.encoding):
                     return line
         except:
             logger.exception('Exception in actor')
