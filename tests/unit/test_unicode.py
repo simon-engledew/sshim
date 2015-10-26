@@ -21,7 +21,7 @@ class TestUnicode(unittest.TestCase):
         with sshim.Server(echo, port=0, encoding='utf8') as server:
             client = paramiko.SSHClient()
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            client.connect('127.0.0.1', port=server.port)
+            client.connect('0.0.0.0', port=server.port)
             shell = client.invoke_shell()
             fileobj = shell.makefile('rw')
             fileobj.write(u'£test\n'.encode('utf8'))
