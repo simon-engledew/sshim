@@ -11,10 +11,10 @@ def hello_world(script):
 
     # match their input against a regular expression which will store the name in a capturing group called name
     groups = script.expect(re.compile('(?P<name>.*)')).groupdict()
-    
+
     # log on the server-side that the user has connected
-    logger.info('%(name)s just connected', **groups)
-    
+    logger.info('%(name)s just connected'.format(**groups))
+
     # send a message back to the SSH client greeting it by name
     script.writeline('Hello %(name)s!' % groups)
 

@@ -3,6 +3,11 @@ logging.basicConfig(level='DEBUG')
 
 import sshim, time, re
 
+try:
+    xrange
+except NameError:
+    xrange = range
+
 # define the callback function which will be triggered when a new SSH connection is made:
 def counter(script):
     while True:

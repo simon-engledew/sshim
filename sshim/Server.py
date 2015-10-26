@@ -134,7 +134,7 @@ class Server(threading.Thread):
     """
 
     """
-    def __init__(self, delegate, address='127.0.0.1', port=22, key=None, timeout=None, encoding='ascii', handler=Handler):
+    def __init__(self, delegate, address='', port=22, key=None, timeout=None, encoding='ascii', handler=Handler):
         threading.Thread.__init__(self, name='sshim.Server')
         self.exceptions = queue.Queue()
 
@@ -147,7 +147,7 @@ class Server(threading.Thread):
         self.delegate = delegate
         self.daemon = True
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((address, port))
         self.key = key or DEFAULT_KEY
 
@@ -162,6 +162,9 @@ class Server(threading.Thread):
         return port
 
     def __enter__(self):
+        self.socket.listen(5)
+        logging.info('sshim.Server listening on %s:%d', *self.socket.getsockname())
+
         self.start()
         return self
 
@@ -172,7 +175,7 @@ class Server(threading.Thread):
         """
             Stop the server, waiting for the runloop to exit.
         """
-        logging.info('stopping')
+        logging.info('closing socket')
         self.socket.close()
         if self.is_alive():
             self.join()
@@ -188,22 +191,26 @@ class Server(threading.Thread):
             Synchronously start the server in the current thread, blocking indefinitely.
         """
         try:
-            self.socket.listen(5)
-            logging.info('listening on port %d', self.port)
-            while True:
-                r, w, x = select.select([self.socket], [], [], 1)
-                if r:
-                    connection, address = self.socket.accept()
-                    #if connection.recv(1, socket.MSG_PEEK):
-                    self.handler(self, (connection, address))
-        except (select.error, socket.error) as exception:
-            if hasattr(exception, 'errno'):
-                if exception.errno != errno.EBADF:
-                    raise
-            else:
-                (code, message) = exception.args
-                if code != errno.EBADF:
-                    raise
+            try:
+                while self.socket.fileno() > 0:
+                    r, w, x = select.select([self.socket], [], [], 1)
+                    if r:
+                        connection, address = self.socket.accept()
+                        logging.info('sshim.Server accepted connection from %s:%d', *address)
+                        #if connection.recv(1, socket.MSG_PEEK):
+                        self.handler(self, (connection, address))
+            except (select.error, socket.error) as exception:
+                if hasattr(exception, 'errno'):
+                    if exception.errno != errno.EBADF:
+                        raise
+                else:
+                    (code, message) = exception.args
+                    if code != errno.EBADF:
+                        raise
+        except:
+          self.exceptions.put_nowait(sys.exc_info())
+          raise
+
 
 class Actor(threading.Thread):
     def __init__(self, client, channel):

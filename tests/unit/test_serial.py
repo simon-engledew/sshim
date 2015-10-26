@@ -1,27 +1,23 @@
 import paramiko
 import unittest
 import sshim
+from . import connect
 
 def success(script):
     script.writeline('success')
 
 class TestMultipleServers(unittest.TestCase):
-    def assert_success(self):
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect('127.0.0.1', port=3000)
-        channel = ssh.invoke_shell()
-        fileobj = channel.makefile('rw')
-        self.assertEqual(fileobj.readline(), 'success\r\n')
-        ssh.close()
+    def assert_success(self, server):
+        with connect(server) as fileobj:
+            self.assertEqual(fileobj.readline(), 'success\r\n')
 
     def test_one_after_another(self):
-        with sshim.Server(success, port=3000):
-            self.assert_success()
+        with sshim.Server(success, port=3000) as server:
+            self.assert_success(server)
 
-        with sshim.Server(success, port=3000):
-            self.assert_success()
+        with sshim.Server(success, port=3000) as server:
+            self.assert_success(server)
 
     def test_another_server(self):
-        with sshim.Server(success, port=3000):
-            self.assert_success()
+        with sshim.Server(success, port=3000) as server:
+            self.assert_success(server)
