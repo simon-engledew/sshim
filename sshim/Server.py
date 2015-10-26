@@ -8,35 +8,15 @@ import select
 import traceback
 import errno
 import logging
-try:
-  import Queue as queue
-except ImportError:
-  import queue
 import sys
 
-try:
-    from sshim.reraise2 import reraise
-except SyntaxError:
-    from sshim.reraise3 import reraise
-
-if sys.version < '3':
-    def u(value):
-        return unicode(value)
-else:
-    def u(value):
-        return str(value)
-
-from io import BytesIO
-
-try:
-    from StringIO import StringIO
-except ImportError:
-    from io import StringIO
+import six
+from six.moves import queue
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_KEY = paramiko.rsakey.RSAKey(file_obj=
-StringIO("""-----BEGIN RSA PRIVATE KEY-----
+six.StringIO("""-----BEGIN RSA PRIVATE KEY-----
 MIIEogIBAAKCAQEAnahBtR7uxtHmk5UwlFfpC/zxdxjUKPD8UpNOOtIJwpei7gaZ
 +Jgub5GFJtTG6CK+DIZiR4tE9JxMjTEFDCGA3U4C36shHB15Pl3bLx+UxdyFylpc
 c7XYp4fpQjhFUoHOAIl5ZaA223kIxi7sFXtM1Gjy6g49u+G5teVfMbeZnks2xjjy
@@ -134,7 +114,7 @@ class Server(threading.Thread):
     """
 
     """
-    def __init__(self, delegate, address='', port=22, key=None, timeout=None, encoding='ascii', handler=Handler):
+    def __init__(self, delegate, address='', port=22, backlog=5, key=None, timeout=None, encoding='ascii', handler=Handler):
         threading.Thread.__init__(self, name='sshim.Server')
         self.exceptions = queue.Queue()
 
@@ -149,6 +129,8 @@ class Server(threading.Thread):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((address, port))
+        self.socket.listen(backlog)
+        logging.info('sshim.Server listening on %s:%d', *self.socket.getsockname())
         self.key = key or DEFAULT_KEY
 
     @property
@@ -162,9 +144,6 @@ class Server(threading.Thread):
         return port
 
     def __enter__(self):
-        self.socket.listen(5)
-        logging.info('sshim.Server listening on %s:%d', *self.socket.getsockname())
-
         self.start()
         return self
 
@@ -180,7 +159,7 @@ class Server(threading.Thread):
         if self.is_alive():
             self.join()
         if not self.exceptions.empty():
-            reraise(self.exceptions.get())
+            six.reraise(*self.exceptions.get())
 
     def join(self):
         self.counter.join()
@@ -243,11 +222,11 @@ class Actor(threading.Thread):
                     exception_string = traceback.format_exc()
                     try:
                         fileobj.write(
-                            (u'\r\n' + u(exception_string).replace(u'\n', u'\r\n')).encode(self.server.encoding)
+                            (u'\r\n' + six.text_type(exception_string).replace(u'\n', u'\r\n')).encode(self.server.encoding)
                         )
                     except:
                         pass
-                    reraise(exc_info)
+                    six.reraise(*exc_info)
             except:
                 self.server.exceptions.put_nowait(sys.exc_info())
             finally:
@@ -285,13 +264,13 @@ class Script(object):
         """
             Send unicode to the client.
         """
-        self.sendall(u(line).encode(self.encoding))
+        self.sendall(six.text_type(line).encode(self.encoding))
 
     def writeline(self, line):
         """
             Send unicode to the client and append a carriage return and newline.
         """
-        self.sendall((u(line) + u'\r\n').encode(self.encoding))
+        self.sendall((six.text_type(line) + u'\r\n').encode(self.encoding))
 
     def expect(self, line, echo=True):
         """
@@ -302,7 +281,7 @@ class Script(object):
 
             If ``echo`` is set to False, the server will not echo the input back to the client.
         """
-        buffer = BytesIO()
+        buffer = six.BytesIO()
 
         try:
             while True:
@@ -333,14 +312,14 @@ class Script(object):
                 self.sendall('\r\n')
 
             if hasattr(line, 'match'):
-                match = line.match(buffer.getvalue().decode(self.encoding))
+                match = line.match(codecs.decode(buffer.getvalue(), self.encoding))
                 if match is not None:
                     return match
             else:
-                if line == buffer.getvalue().decode(self.encoding):
+                if line == codecs.decode(buffer.getvalue(), self.encoding):
                     return line
         except:
             logger.exception('Exception in actor')
             raise
 
-        raise AssertionError('failed to match %r against %r' % (line, buffer.getvalue().decode(self.encoding)))
+        raise AssertionError('failed to match %r against %r' % (line, codecs.decode(buffer.getvalue(), self.encoding)))

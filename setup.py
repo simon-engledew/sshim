@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='sshim',
-    version='1.0',
+    version='1.1',
 
     description='Scriptable SSH server for testing SSH clients.',
     author="Simon Engledew",
@@ -11,6 +11,7 @@ setup(
 
     install_requires = [
         'paramiko',
+        'six'
     ],
     extras_require = {
       'tests': [

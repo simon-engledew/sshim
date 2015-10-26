@@ -2,16 +2,12 @@ import logging
 logging.basicConfig(level='DEBUG')
 
 import sshim, time, re
-
-try:
-    xrange
-except NameError:
-    xrange = range
+from six.moves import range
 
 # define the callback function which will be triggered when a new SSH connection is made:
 def counter(script):
     while True:
-        for n in xrange(0, 10):
+        for n in range(0, 10):
             # send the numbers 0 to 10 to the client with a little pause between each one for dramatic effect:
             script.writeline(n)
             time.sleep(0.1)
