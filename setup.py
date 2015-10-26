@@ -12,6 +12,11 @@ setup(
     install_requires = [
         'paramiko',
     ],
+    extras_require = {
+      'tests': [
+        'nose'
+      ]
+    },
     zip_safe=True,
     include_package_data=False,
     packages=find_packages(),
