@@ -87,7 +87,7 @@ class Counter(object):
             while self.count:
                 self.condition.wait()
 
-class Handler(object):
+class Handler(paramiko.server.ServerInterface):
     def __init__(self, server, connection):
         (client, (address, port)) = connection
         self.server = server
