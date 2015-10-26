@@ -8,10 +8,10 @@ class TestFailure(unittest.TestCase):
             script.expect('moose')
             script.writeline('return')
 
-        with sshim.Server(echo, port=0) as server:
+        with sshim.Server(echo, port=3000) as server:
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect('0.0.0.0', port=server.port)
+            ssh.connect('127.0.0.1', port=3000)
             channel = ssh.invoke_shell()
             fileobj = channel.makefile('rw')
             fileobj.write('goose\n')
@@ -24,10 +24,10 @@ class TestFailure(unittest.TestCase):
             script.expect('goose')
             self.assertRaises(EOFError, script.expect, '')
 
-        with sshim.Server(echo, port=0) as server:
+        with sshim.Server(echo, port=3000):
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect('0.0.0.0', port=server.port)
+            ssh.connect('127.0.0.1', port=3000)
             channel = ssh.invoke_shell()
             fileobj = channel.makefile('rw')
             fileobj.write('goose\n')
@@ -41,10 +41,10 @@ class TestFailure(unittest.TestCase):
             script.expect('moose')
             self.assertRaises(AssertionError, script.expect, '')
 
-        with sshim.Server(echo, port=0) as server:
+        with sshim.Server(echo, port=3000):
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect('0.0.0.0', port=server.port)
+            ssh.connect('127.0.0.1', port=3000)
             channel = ssh.invoke_shell()
             fileobj = channel.makefile('rw')
             fileobj.write('moose\n')

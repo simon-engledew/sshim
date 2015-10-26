@@ -134,7 +134,7 @@ class Server(threading.Thread):
     """
 
     """
-    def __init__(self, delegate, address='0.0.0.0', port=22, key=None, timeout=None, encoding='ascii', handler=Handler):
+    def __init__(self, delegate, address='127.0.0.1', port=22, key=None, timeout=None, encoding='ascii', handler=Handler):
         threading.Thread.__init__(self, name='sshim.Server')
         self.exceptions = queue.Queue()
 
