@@ -5,7 +5,7 @@ python:
 
 install: "pip install -e .[tests]"
 
-script: "nosetests --nologcapture"
+script: "nosetests"
 
 notifications:
   email: false
