@@ -69,7 +69,8 @@ class Counter(object):
 
 class Handler(paramiko.server.ServerInterface):
     def __init__(self, server, connection):
-        (client, (address, port)) = connection
+        (client, host) = connection
+        (address, port) = host[0:2]
         self.server = server
         self.address, self.port = address, port
         self.transport = paramiko.transport.Transport(client)
@@ -114,6 +115,7 @@ class Server(threading.Thread):
     """
 
     """
+
     def __init__(self, delegate, address='', port=22, backlog=5, key=None, timeout=None, encoding='ascii', handler=Handler):
         threading.Thread.__init__(self, name='sshim.Server')
         self.exceptions = queue.Queue()
@@ -126,21 +128,32 @@ class Server(threading.Thread):
 
         self.delegate = delegate
         self.daemon = True
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        def is_valid_ipv6_address(address):
+            try:
+                socket.inet_pton(socket.AF_INET6, address)
+            except socket.error:  # not a valid address
+                return False
+            return True
+
+        if(is_valid_ipv6_address(address)):
+            self.socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+        else: # ipv4
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((address, port))
         self.socket.listen(backlog)
-        logging.info('sshim.Server listening on %s:%d', *self.socket.getsockname())
+        logging.info('sshim.Server listening on %s:%d', self.socket.getsockname()[0], self.socket.getsockname()[1])
         self.key = key or DEFAULT_KEY
 
     @property
     def address(self):
-        address, port = self.socket.getsockname()
+        address = self.socket.getsockname()[0]
         return address
 
     @property
     def port(self):
-        address, port = self.socket.getsockname()
+        port = self.socket.getsockname()[1]
         return port
 
     def __enter__(self):
@@ -175,7 +188,7 @@ class Server(threading.Thread):
                     r, w, x = select.select([self.socket], [], [], 1)
                     if r:
                         connection, address = self.socket.accept()
-                        logging.info('sshim.Server accepted connection from %s:%d', *address)
+                        logging.info('sshim.Server accepted connection from %s:%d', address[0], address[1])
                         #if connection.recv(1, socket.MSG_PEEK):
                         self.handler(self, (connection, address))
             except (select.error, socket.error) as exception:
