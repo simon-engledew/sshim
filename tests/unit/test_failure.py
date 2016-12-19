@@ -9,7 +9,7 @@ class TestFailure(unittest.TestCase):
             script.expect('moose')
             script.writeline('return')
 
-        with sshim.Server(echo, port=3000) as server:
+        with sshim.Server(echo, address='127.0.0.1', port=0) as server:
             with connect(server) as fileobj:
                 fileobj.write('goose\n')
                 fileobj.flush()
@@ -20,7 +20,7 @@ class TestFailure(unittest.TestCase):
             script.expect('goose')
             self.assertRaises(EOFError, script.expect, '')
 
-        with sshim.Server(echo, port=3000) as server:
+        with sshim.Server(echo, address='127.0.0.1', port=0) as server:
             with connect(server) as fileobj:
                 fileobj.write('goose\n')
                 fileobj.flush()
@@ -31,7 +31,7 @@ class TestFailure(unittest.TestCase):
             script.expect('moose')
             self.assertRaises(AssertionError, script.expect, '')
 
-        with sshim.Server(echo, port=3000) as server:
+        with sshim.Server(echo, address='127.0.0.1', port=0) as server:
             with connect(server) as fileobj:
                 fileobj.write('moose\n')
                 fileobj.write('goose\n')

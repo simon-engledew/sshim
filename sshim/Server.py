@@ -69,7 +69,9 @@ class Counter(object):
 
 class Handler(paramiko.server.ServerInterface):
     def __init__(self, server, connection):
-        (client, (address, port)) = connection
+        client, host = connection
+        address, port = host[:2]
+        logging.info('sshim.Server accepted connection from %s:%d', address, port)
         self.server = server
         self.address, self.port = address, port
         self.transport = paramiko.transport.Transport(client)
@@ -110,6 +112,11 @@ class Handler(paramiko.server.ServerInterface):
         logger.debug('Channel(%d) was granted a pty request', channel.chanid)
         return True
 
+def socket_for(address, port):
+    for family, socktype, proto, canonname, sockaddr in socket.getaddrinfo(address, port):
+        return socket.socket(family, socket.SOCK_STREAM)
+    return socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
 class Server(threading.Thread):
     """
 
@@ -126,21 +133,21 @@ class Server(threading.Thread):
 
         self.delegate = delegate
         self.daemon = True
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket = socket_for(address, port)
         # self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((address, port))
         self.socket.listen(backlog)
-        logging.info('sshim.Server listening on %s:%d', *self.socket.getsockname())
+        logging.info('sshim.Server listening on %s:%d', self.address, self.port)
         self.key = key or DEFAULT_KEY
 
     @property
     def address(self):
-        address, port = self.socket.getsockname()
+        address, port = self.socket.getsockname()[:2]
         return address
 
     @property
     def port(self):
-        address, port = self.socket.getsockname()
+        address, port = self.socket.getsockname()[:2]
         return port
 
     def __enter__(self):
@@ -175,7 +182,6 @@ class Server(threading.Thread):
                     r, w, x = select.select([self.socket], [], [], 1)
                     if r:
                         connection, address = self.socket.accept()
-                        logging.info('sshim.Server accepted connection from %s:%d', *address)
                         #if connection.recv(1, socket.MSG_PEEK):
                         self.handler(self, (connection, address))
             except (select.error, socket.error) as exception:

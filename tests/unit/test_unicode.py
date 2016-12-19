@@ -22,7 +22,7 @@ class TestUnicode(unittest.TestCase):
             assert value == six.u('£test')
             script.writeline(six.u('return {0}').format(value))
 
-        with sshim.Server(echo, port=3000, encoding='utf8') as server:
+        with sshim.Server(echo, address='127.0.0.1', port=0, encoding='utf8') as server:
             with connect(server) as fileobj:
                 fileobj.write(six.u('£test\n').encode('utf8'))
                 fileobj.flush()
