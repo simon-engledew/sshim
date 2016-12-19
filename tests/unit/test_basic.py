@@ -11,7 +11,7 @@ class TestBasic(unittest.TestCase):
             assert groups['value'] == 'test_echo'
             script.writeline('return %(value)s' % groups)
 
-        with sshim.Server(echo, address='127.0.0.1', port=3000) as server:
+        with sshim.Server(echo, address='127.0.0.1', port=0) as server:
             with connect(server) as fileobj:
                 fileobj.write('test_echo\n')
                 fileobj.flush()
@@ -24,7 +24,7 @@ class TestBasic(unittest.TestCase):
             assert groups['value'] == 'test_echo'
             script.writeline('return %(value)s' % groups)
 
-        with sshim.Server(echo, address='::1', port=3000) as server:
+        with sshim.Server(echo, address='::1', port=0) as server:
             with connect(server) as fileobj:
                 fileobj.write('test_echo\n')
                 fileobj.flush()

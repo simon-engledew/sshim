@@ -13,12 +13,12 @@ class TestMultipleServers(unittest.TestCase):
             fileobj.close()
 
     def test_one_after_another(self):
-        with sshim.Server(success, port=3000) as server:
+        with sshim.Server(success, address='127.0.0.1', port=0) as server:
             self.assert_success(server)
 
-        with sshim.Server(success, port=3000) as server:
+        with sshim.Server(success, address='127.0.0.1', port=0) as server:
             self.assert_success(server)
 
     def test_another_server(self):
-        with sshim.Server(success, port=3000) as server:
+        with sshim.Server(success, address='127.0.0.1', port=0) as server:
             self.assert_success(server)
