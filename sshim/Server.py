@@ -179,27 +179,28 @@ class Server(threading.Thread):
         try:
             try:
                 while self.socket.fileno() > 0:
-                    r, w, x = select.select([self.socket], [], [], 1)
-                    if r:
+                    read, _, _ = select.select([self.socket], [], [], 1)
+                    if read:
                         connection, address = self.socket.accept()
-                        #if connection.recv(1, socket.MSG_PEEK):
+
                         self.handler(self, (connection, address))
-            except (select.error, socket.error) as exception:
-                if hasattr(exception, 'errno'):
-                    if exception.errno != errno.EBADF:
+            except (select.error, socket.error) as err:
+                if hasattr(err, 'errno'):
+                    if err.errno != errno.EBADF:  # pylint: disable=no-member
                         raise
                 else:
-                    (code, message) = exception.args
+                    (code, _) = err.args
                     if code != errno.EBADF:
                         raise
         except:
-          self.exceptions.put_nowait(sys.exc_info())
-          raise
+            self.exceptions.put_nowait(sys.exc_info())
+            raise
 
 
 class Actor(threading.Thread):
     def __init__(self, client, channel):
-        threading.Thread.__init__(self, name='sshim.Actor(%s)' % channel.get_id())
+        threading.Thread.__init__(self, name='sshim.Actor(%s)' % channel.chanid)
+        logger.debug('Starting actor on Channel(%d)', channel.chanid)
         self.daemon = True
         self.client = client
         self.channel = channel
@@ -217,8 +218,18 @@ class Actor(threading.Thread):
         with self.server.counter:
             try:
                 fileobj = self.channel.makefile('rw')
+                if not fileobj: raise SystemExit(1)
                 try:
-                    value = self.delegate(Script(self.delegate, fileobj, self.client.transport, encoding=self.server.encoding))
+                    logger.debug('Running script on Channel(%d)', self.channel.chanid)
+                    value = self.delegate(
+                        Script(
+                            self.delegate,
+                            fileobj,
+                            self.client.transport,
+                            encoding=self.server.encoding
+                        )
+                    )
+                    logger.debug('Script on Channel(%d) complete', self.channel.chanid)
 
                     if isinstance(value, threading.Thread):
                         value.join()
@@ -233,13 +244,19 @@ class Actor(threading.Thread):
                     except:
                         pass
                     six.reraise(*exc_info)
+
+                self.channel.send_exit_status(0)
             except:
+                self.channel.send_exit_status(1)
                 self.server.exceptions.put_nowait(sys.exc_info())
             finally:
                 try:
+                    logger.debug('Shutting down Channel(%d)', self.channel.chanid)
+                    self.channel.recv_exit_status()
+                    self.channel.shutdown(2)
                     self.channel.close()
                 except EOFError:
-                    logger.debug('Channel already closed')
+                    logger.debug('Channel(%d) already closed', self.channel.chanid)
 
 class Script(object):
     """
@@ -262,9 +279,9 @@ class Script(object):
         try:
             self.fileobj.write(bytes)
         except socket.error:
-            pass
+            logger.exception('Socket error when writing to channel')
         except EOFError:
-            pass
+            logger.debug('Attempted to send on closed channel')
 
     def write(self, line):
         """
