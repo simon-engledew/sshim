@@ -238,7 +238,7 @@ class Actor(threading.Thread):
                     exc_info = sys.exc_info()
                     exception_string = traceback.format_exc()
                     try:
-                        fileobj.write(
+                        self.channel.sendall_stderr(
                             (u'\r\n' + six.text_type(exception_string).replace(u'\n', u'\r\n')).encode(self.server.encoding)
                         )
                     except:
