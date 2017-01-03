@@ -113,8 +113,12 @@ class Handler(paramiko.server.ServerInterface):
         return True
 
 def socket_for(address, port):
-    for family, socktype, proto, canonname, sockaddr in socket.getaddrinfo(address or None, port):
-        return socket.socket(family, socket.SOCK_STREAM)
+    try:
+        for family, socktype, proto, canonname, sockaddr in socket.getaddrinfo(address or None, port):
+            return socket.socket(family, socket.SOCK_STREAM)
+    except socket.gaierror:
+        logger.exception('Failed to determine socket type')
+
     return socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 class Server(threading.Thread):
