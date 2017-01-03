@@ -113,7 +113,7 @@ class Handler(paramiko.server.ServerInterface):
         return True
 
 def socket_for(address, port):
-    for family, socktype, proto, canonname, sockaddr in socket.getaddrinfo(address, port):
+    for family, socktype, proto, canonname, sockaddr in socket.getaddrinfo(address or None, port):
         return socket.socket(family, socket.SOCK_STREAM)
     return socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -135,7 +135,7 @@ class Server(threading.Thread):
         self.daemon = True
         self.socket = socket_for(address, port)
         # self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.socket.bind((address, port))
+        self.socket.bind((address or '', port))
         self.socket.listen(backlog)
         logging.info('sshim.Server listening on %s:%d', self.address, self.port)
         self.key = key or DEFAULT_KEY
