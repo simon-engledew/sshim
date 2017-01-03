@@ -134,7 +134,7 @@ class Server(threading.Thread):
         self.delegate = delegate
         self.daemon = True
         self.socket = socket_for(address, port)
-        # self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((address or '', port))
         self.socket.listen(backlog)
         logging.info('sshim.Server listening on %s:%d', self.address, self.port)
@@ -244,11 +244,12 @@ class Actor(threading.Thread):
                     except:
                         pass
                     six.reraise(*exc_info)
-
-                self.channel.send_exit_status(0)
             except:
                 self.channel.send_exit_status(1)
                 self.server.exceptions.put_nowait(sys.exc_info())
+            else:
+                if not self.channel.closed:
+                    self.channel.send_exit_status(0)
             finally:
                 try:
                     logger.debug('Shutting down Channel(%d)', self.channel.chanid)
