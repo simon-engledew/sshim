@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='sshim',
-    version='1.3',
+    version='1.3.1',
 
     description='Scriptable SSH server for testing SSH clients.',
     author="Simon Engledew",
