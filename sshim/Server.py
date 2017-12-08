@@ -257,8 +257,7 @@ class Actor(threading.Thread):
             finally:
                 try:
                     logger.debug('Shutting down Channel(%d)', self.channel.chanid)
-                    self.channel.recv_exit_status()
-                    self.channel.shutdown(2)
+                    self.channel.shutdown(socket.SHUT_RDWR)
                     self.channel.close()
                 except EOFError:
                     logger.debug('Channel(%d) already closed', self.channel.chanid)
