@@ -1,6 +1,5 @@
 import unittest
 import sshim
-import paramiko
 from . import connect
 
 class TestFailure(unittest.TestCase):

@@ -1,4 +1,3 @@
-import paramiko
 import unittest
 import sshim
 from . import connect

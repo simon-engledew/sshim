@@ -2,7 +2,6 @@
 
 import unittest
 import sshim
-import paramiko
 import re
 import codecs
 import six

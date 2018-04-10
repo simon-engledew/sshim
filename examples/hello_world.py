@@ -1,8 +1,9 @@
 import logging
+import re
+import sshim
+
 logging.basicConfig(level='DEBUG')
 logger = logging.getLogger()
-
-import sshim, re
 
 # define the callback function which will be triggered when a new SSH connection is made:
 def hello_world(script):

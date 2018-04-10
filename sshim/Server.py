@@ -67,6 +67,7 @@ class Counter(object):
             while self.count:
                 self.condition.wait()
 
+
 class Handler(paramiko.server.ServerInterface):
     def __init__(self, server, connection):
         client, host = connection
@@ -112,14 +113,16 @@ class Handler(paramiko.server.ServerInterface):
         logger.debug('Channel(%d) was granted a pty request', channel.chanid)
         return True
 
+
 def socket_for(address, port):
     try:
-        for family, socktype, proto, canonname, sockaddr in socket.getaddrinfo(address or None, port):
+        for family, _socktype, _proto, _canonname, _sockaddr in socket.getaddrinfo(address or None, port):
             return socket.socket(family, socket.SOCK_STREAM)
     except socket.gaierror:
         logger.exception('Failed to determine socket type')
 
     return socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
 
 class Server(threading.Thread):
     """
@@ -146,12 +149,12 @@ class Server(threading.Thread):
 
     @property
     def address(self):
-        address, port = self.socket.getsockname()[:2]
+        address, _port = self.socket.getsockname()[:2]
         return address
 
     @property
     def port(self):
-        address, port = self.socket.getsockname()[:2]
+        _address, port = self.socket.getsockname()[:2]
         return port
 
     def __enter__(self):
@@ -193,10 +196,10 @@ class Server(threading.Thread):
                     if err.errno != errno.EBADF:  # pylint: disable=no-member
                         raise
                 else:
-                    (code, _) = err.args
+                    code = next(iter(err.args))
                     if code != errno.EBADF:
                         raise
-        except:
+        except Exception:
             self.exceptions.put_nowait(sys.exc_info())
             raise
 
@@ -222,10 +225,11 @@ class Actor(threading.Thread):
         with self.server.counter:
             try:
                 fileobj = self.channel.makefile('rw')
-                if not fileobj: raise SystemExit(1)
+                if not fileobj:
+                    raise SystemExit(1)
                 try:
                     logger.debug('Running script on Channel(%d)', self.channel.chanid)
-                    value = self.delegate(
+                    value = self.delegate.__call__(
                         Script(
                             self.delegate,
                             fileobj,
@@ -238,17 +242,17 @@ class Actor(threading.Thread):
                     if isinstance(value, threading.Thread):
                         value.join()
 
-                except:
+                except Exception:
                     exc_info = sys.exc_info()
                     exception_string = traceback.format_exc()
                     try:
                         self.channel.sendall_stderr(
                             (u'\r\n' + six.text_type(exception_string).replace(u'\n', u'\r\n')).encode(self.server.encoding)
                         )
-                    except:
+                    except Exception:
                         pass
                     six.reraise(*exc_info)
-            except:
+            except Exception:
                 self.channel.send_exit_status(1)
                 self.server.exceptions.put_nowait(sys.exc_info())
             else:
@@ -262,10 +266,13 @@ class Actor(threading.Thread):
                 except EOFError:
                     logger.debug('Channel(%d) already closed', self.channel.chanid)
 
+
 class Script(object):
     """
     """
     def __init__(self, delegate, fileobj, transport, encoding='ascii'):
+        if not hasattr(delegate, '__call__'):
+            raise ValueError('Delegate must be a callable')
         self.delegate = delegate
         self.encoding = encoding
         self.transport = transport
@@ -345,7 +352,7 @@ class Script(object):
             else:
                 if line == codecs.decode(buffer.getvalue(), self.encoding):
                     return line
-        except:
+        except Exception:
             logger.exception('Exception in actor')
             raise
 

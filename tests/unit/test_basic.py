@@ -1,7 +1,6 @@
 import unittest
 import re
 import sshim
-import paramiko
 from . import connect
 
 class TestBasic(unittest.TestCase):
