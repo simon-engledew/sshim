@@ -15,7 +15,7 @@ setup(
     ],
     extras_require = {
       'tests': [
-        'nose'
+        'pytest'
       ]
     },
     zip_safe=True,

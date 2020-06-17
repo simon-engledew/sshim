@@ -1,11 +1,15 @@
+os: linux
+arch: arm64
+dist: bionic
+
 language: python
 python:
   - "2.7"
-  - "3.5"
+  - "3.8"
 
 install: "pip install -e .[tests]"
 
-script: "nosetests"
+script: "pytest tests"
 
 notifications:
   email: false
