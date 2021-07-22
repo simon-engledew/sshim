@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/simon-engledew/sshim.svg?branch=master)](https://travis-ci.org/simon-engledew/sshim)
+![Build Status](https://github.com/simon-engledew/sshim/actions/workflows/main.yml/badge.svg)
 
 ```
 pip install sshim

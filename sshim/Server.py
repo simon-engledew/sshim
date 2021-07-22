@@ -326,9 +326,9 @@ class Script(object):
                 elif byte == b'\t':
                     pass
                 elif byte == b'\x7f':
-                    if buffer.len > 0:
+                    if buffer.tell() > 0:
                         self.sendall('\b \b')
-                        buffer.truncate(buffer.len - 1)
+                        buffer.truncate(buffer.tell() - 1)
                 elif byte == b'\x1b' and self.fileobj.read(1) == b'[':
                     command = self.fileobj.read(1)
                     if hasattr(self.delegate, 'cursor'):
